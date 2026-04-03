@@ -34,19 +34,19 @@
 import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",   // Keep this simple for Gmail
+  service: "gmail", 
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS   // ← MUST be the 16-char App Password
+    pass: process.env.EMAIL_PASS  
   }
 });
 
 // Test transporter on startup
 transporter.verify((error) => {
   if (error) {
-    console.error("❌ Email transporter failed:", error.message);
+    console.error(" Email transporter failed:", error.message);
   } else {
-    console.log("✅ Email transporter ready");
+    console.log(" Email transporter ready");
   }
 });
 
