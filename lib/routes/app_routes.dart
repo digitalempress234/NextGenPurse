@@ -7,7 +7,8 @@ import '../features/Auth/Presentation/signup/signup.dart';
 import '../features/Auth/Presentation/forgot_password/forgot_password_screen.dart';
 import '../features/Auth/Presentation/otp_verification/otp_screen.dart';
 import '../features/Auth/Presentation/forgot_password/reset_password_screen.dart';
-import '../features/Home/Presentation/Screens/homescreen.dart';
+import '../features/Home/Presentation/dashboard_shell.dart';
+import '../features/categories/presentation/screen/categories.dart';
 
 final router = GoRouter(
   initialLocation: '/',
@@ -28,6 +29,10 @@ final router = GoRouter(
       path: '/reset-password',
       builder: (context, state) => const ResetPasswordScreen(),
     ),
-    GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+    GoRoute(path: '/home', builder: (context, state) => const DashboardShell()),
+    GoRoute(
+      path: '/categories',
+      builder: (context, state) => const CategoriesScreen(),
+    ),
   ],
 );

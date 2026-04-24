@@ -7,7 +7,7 @@ import 'product_card.dart';
 
 class DailyDiscountsSection extends StatelessWidget {
   /// List of products to display
-  final List<ProductDiscountData> products;
+  final List<ProductDiscountData>? products;
 
   /// Discount title
   final String title;
@@ -20,14 +20,42 @@ class DailyDiscountsSection extends StatelessWidget {
 
   const DailyDiscountsSection({
     super.key,
-    required this.products,
+    this.products,
     this.title = 'Daily Discounts',
     this.bannerText = '3 items and get 20% Discount',
     this.iconPath = 'assets/icons/solar_shop-bold.svg',
   });
 
+  /// Get default mock products
+  static List<ProductDiscountData> get _defaultProducts => [
+    ProductDiscountData(
+      imagePath: 'assets/images/oraimo.jpg',
+      productName: 'Oraimo smart-watch',
+      currentPrice: '₦ 40,000',
+      originalPrice: '₦ 80,000',
+      discountPercent: '50% Off',
+      rating: 4,
+      reviewCount: 100,
+      onAddToCart: () {},
+      onWishlistPressed: () {},
+    ),
+    ProductDiscountData(
+      imagePath: 'assets/images/airpods.jpg',
+      productName: 'Airpods 3pro',
+      currentPrice: '₦ 40,000',
+      originalPrice: '₦ 80,000',
+      discountPercent: '50% Off',
+      rating: 4,
+      reviewCount: 200,
+      onAddToCart: () {},
+      onWishlistPressed: () {},
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final displayProducts = products ?? _defaultProducts;
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 16.w),
       child: Container(
@@ -85,22 +113,27 @@ class DailyDiscountsSection extends StatelessWidget {
               // Products Grid (2 columns)
               Row(
                 children: List.generate(
-                  products.length * 2 - 1,
+                  displayProducts.length * 2 - 1,
                   (index) => index.isEven
                       ? Flexible(
                           flex: 1,
                           child: ProductCard(
-                            imagePath: products[index ~/ 2].imagePath,
-                            productName: products[index ~/ 2].productName,
-                            currentPrice: products[index ~/ 2].currentPrice,
-                            originalPrice: products[index ~/ 2].originalPrice,
+                            imagePath: displayProducts[index ~/ 2].imagePath,
+                            productName:
+                                displayProducts[index ~/ 2].productName,
+                            currentPrice:
+                                displayProducts[index ~/ 2].currentPrice,
+                            originalPrice:
+                                displayProducts[index ~/ 2].originalPrice,
                             discountPercent:
-                                products[index ~/ 2].discountPercent,
-                            rating: products[index ~/ 2].rating,
-                            reviewCount: products[index ~/ 2].reviewCount,
-                            onAddToCart: products[index ~/ 2].onAddToCart,
+                                displayProducts[index ~/ 2].discountPercent,
+                            rating: displayProducts[index ~/ 2].rating,
+                            reviewCount:
+                                displayProducts[index ~/ 2].reviewCount,
+                            onAddToCart:
+                                displayProducts[index ~/ 2].onAddToCart,
                             onWishlistPressed:
-                                products[index ~/ 2].onWishlistPressed,
+                                displayProducts[index ~/ 2].onWishlistPressed,
                           ),
                         )
                       : SizedBox(width: 12.w),

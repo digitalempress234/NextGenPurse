@@ -11,7 +11,7 @@ class ProductSearchBar extends StatelessWidget {
   final ValueChanged<String>? onSearchChanged;
 
   /// Callback when search is submitted
-  final VoidCallback? onSearchSubmitted;
+  final ValueChanged<String>? onSearchSubmitted;
 
   /// Callback when scan icon is pressed
   final VoidCallback? onScanPressed;
@@ -61,7 +61,7 @@ class ProductSearchBar extends StatelessWidget {
             child: TextField(
               controller: controller,
               onChanged: onSearchChanged,
-              onSubmitted: (_) => onSearchSubmitted?.call(),
+              onSubmitted: (value) => onSearchSubmitted?.call(value),
               decoration: InputDecoration(
                 hintText: hintText,
                 hintStyle: TextStyle(

@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/platform_responsive.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -44,8 +45,8 @@ class _SigninScreenState extends State<SigninScreen> {
             SocialAuthButton(
               label: 'Sign in with Google',
               onPressed: () {},
-              icon: Image.network(
-                'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1024px-Google_%22G%22_logo.svg.png',
+              icon: SvgPicture.asset(
+                'assets/icons/google.svg',
                 width: 24,
                 height: 24,
               ),

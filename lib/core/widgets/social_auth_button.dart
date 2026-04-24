@@ -41,7 +41,7 @@ class SocialAuthButton extends StatelessWidget {
               height: PlatformResponsive.w(24),
               child: icon,
             ),
-            
+
             // Flexibly centered text
             Expanded(
               child: Center(
@@ -55,7 +55,7 @@ class SocialAuthButton extends StatelessWidget {
                 ),
               ),
             ),
-            
+
             // Empty spacer on the right to mirror the icon and keep text centered
             SizedBox(width: PlatformResponsive.w(24)),
           ],

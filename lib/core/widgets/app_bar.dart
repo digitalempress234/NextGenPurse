@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../constants/app_colors.dart';
 import '../utils/platform_responsive.dart';
 
@@ -34,30 +33,14 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: elevation,
       centerTitle: centerTitle,
       automaticallyImplyLeading: false,
-      leading: leading ??
-          (showBackButton
-              ? GestureDetector(
-                  onTap: onBackPressed ?? () => Navigator.of(context).pop(),
-                  child: Container(
-                    margin: EdgeInsets.all(PlatformResponsive.w(8)),
-                    decoration: BoxDecoration(
-                      color: AppColors.backgroundLight,
-                      borderRadius: BorderRadius.circular(PlatformResponsive.r(10)),
-                    ),
-                    child: Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      size: PlatformResponsive.sp(18),
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                )
-              : null),
+      leading: leading,
       title: Text(
         title,
-        style: GoogleFonts.inter(
+        style: TextStyle(
           fontSize: PlatformResponsive.sp(18),
           fontWeight: FontWeight.w700,
           color: titleColor ?? AppColors.textPrimary,
+          fontFamily: 'Inter',
         ),
       ),
       actions: actions,

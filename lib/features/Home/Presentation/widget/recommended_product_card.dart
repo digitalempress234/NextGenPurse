@@ -4,7 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/widgets/app_text.dart';
 import '../../../../core/constants/app_colors.dart';
 
-class ProductCard extends StatefulWidget {
+class RecommendedProductCard extends StatefulWidget {
   /// Product image path
   final String imagePath;
 
@@ -35,7 +35,7 @@ class ProductCard extends StatefulWidget {
   /// Is product in wishlist
   final bool isWishlisted;
 
-  const ProductCard({
+  const RecommendedProductCard({
     super.key,
     required this.imagePath,
     required this.productName,
@@ -50,10 +50,10 @@ class ProductCard extends StatefulWidget {
   });
 
   @override
-  State<ProductCard> createState() => _ProductCardState();
+  State<RecommendedProductCard> createState() => _RecommendedProductCardState();
 }
 
-class _ProductCardState extends State<ProductCard> {
+class _RecommendedProductCardState extends State<RecommendedProductCard> {
   late bool _isWishlisted;
 
   @override
@@ -70,7 +70,6 @@ class _ProductCardState extends State<ProductCard> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10.r),
-        border: Border.all(color: const Color(0xFFE0E0E0), width: 1),
       ),
       child: Stack(
         children: [
@@ -102,79 +101,75 @@ class _ProductCardState extends State<ProductCard> {
                       // Product Name
                       AppText(
                         widget.productName,
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF1A1A1A),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      SizedBox(height: 12.h),
-                      // Price Section
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Current Price
-                          AppText(
-                            widget.currentPrice,
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                          SizedBox(height: 6.h),
-                          // Original Price + Discount
-                          Row(
-                            children: [
-                              if (widget.originalPrice != null)
-                                AppText(
-                                  widget.originalPrice!,
-                                  fontSize: 11.sp,
-                                  color: Colors.black,
-                                  decoration: TextDecoration.lineThrough,
-                                ),
-                              if (widget.discountPercent != null)
-                                SizedBox(width: 8.w),
-                              if (widget.discountPercent != null)
-                                Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 6.w,
-                                    vertical: 2.h,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black,
-                                    borderRadius: BorderRadius.circular(4.r),
-                                  ),
-                                  child: AppText(
-                                    widget.discountPercent!,
-                                    fontSize: 10.sp,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
+                      SizedBox(height: 6.h),
+                      // Current Price
+                      AppText(
+                        widget.currentPrice,
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1A1A1A),
                       ),
-                      SizedBox(height: 12.h),
-                      // Rating Section
+                      SizedBox(height: 6.h),
+                      // Price Row (Original + Discount)
                       Row(
                         children: [
-                          Row(
-                            children: List.generate(
-                              5,
-                              (index) => Icon(
-                                index < widget.rating.toInt()
-                                    ? Icons.star_rounded
-                                    : Icons.star_outline_rounded,
-                                color: AppColors.primary,
-                                size: 14.sp,
+                          if (widget.originalPrice != null)
+                            Expanded(
+                              child: AppText(
+                                widget.originalPrice!,
+                                fontSize: 11.sp,
+                                fontWeight: FontWeight.w400,
+                                color: const Color(0xFF8D8D8D),
+                                decoration: TextDecoration.lineThrough,
                               ),
                             ),
-                          ),
+                          if (widget.discountPercent != null)
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 6.w,
+                                vertical: 2.h,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1A1A1A),
+                                borderRadius: BorderRadius.circular(4.r),
+                              ),
+                              child: AppText(
+                                widget.discountPercent!,
+                                fontSize: 10.sp,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                        ],
+                      ),
+                      SizedBox(height: 6.h),
+                      // Rating
+                      Row(
+                        children: [
+                          ...List.generate(5, (index) {
+                            return Padding(
+                              padding: EdgeInsets.only(right: 2.w),
+                              child: Icon(
+                                index < widget.rating.toInt()
+                                    ? Icons.star
+                                    : Icons.star_border,
+                                size: 12.sp,
+                                color: AppColors.primary,
+                              ),
+                            );
+                          }),
                           SizedBox(width: 4.w),
                           AppText(
                             '(${widget.reviewCount})',
                             fontSize: 10.sp,
-                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w400,
+                            color: const Color(0xFF8D8D8D),
                           ),
                         ],
                       ),
@@ -198,17 +193,24 @@ class _ProductCardState extends State<ProductCard> {
               child: Container(
                 width: 32.w,
                 height: 32.w,
-                child: CircleAvatar(
-                  backgroundColor: Colors.white,
-                  child: GestureDetector(
-                    onTap: widget.onWishlistPressed,
-                    child: Icon(
-                      _isWishlisted
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_outline_rounded,
-                      color: _isWishlisted ? AppColors.error : Colors.grey,
-                      size: 16.sp,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
+                  ],
+                ),
+                child: Center(
+                  child: Icon(
+                    _isWishlisted ? Icons.favorite : Icons.favorite_border,
+                    size: 16.sp,
+                    color: _isWishlisted
+                        ? AppColors.primary
+                        : const Color(0xFF8D8D8D),
                   ),
                 ),
               ),
@@ -216,8 +218,8 @@ class _ProductCardState extends State<ProductCard> {
           ),
           // Add to Cart Button (Bottom Right)
           Positioned(
-            bottom: 8.w,
-            right: 8.w,
+            bottom: 80.w,
+            right: 16.w,
             child: GestureDetector(
               onTap: widget.onAddToCart,
               child: Container(
@@ -231,7 +233,7 @@ class _ProductCardState extends State<ProductCard> {
                 child: Center(
                   child: Icon(
                     Icons.shopping_cart_outlined,
-                    color: AppColors.textPrimary,
+                    color: const Color(0xFF1A1A1A),
                     size: 16.sp,
                   ),
                 ),

@@ -6,7 +6,15 @@ import '../../../../core/widgets/search_bar.dart';
 import '../widget/banner_carousel.dart';
 import '../widget/daily_discounts_section.dart';
 import '../widget/deals_for_you_section.dart';
+import '../widget/most_purchased_section.dart';
+import '../widget/categories_section.dart';
+import '../widget/top_selling_products_section.dart';
+import '../widget/popular_stores_section.dart';
+import '../widget/recommended_products_section.dart';
+import '../widget/promotional_banner_section.dart';
+import '../widget/image_search_modal.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../search/presentation/search_result_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,28 +26,43 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              // App Bar
-              _buildAppBar(),
-              // TODO: Add Search Bar Section
-              _buildSearchSection(),
-              SizedBox(height: 24.h),
-              // TODO: Add Banner Section
-              _buildBannerSection(),
-              SizedBox(height: 24.h),
-              // Daily Discounts Section
-              _buildDailyDiscountsSection(),
-              SizedBox(height: 24.h),
-              // Deals for You Section
-              _buildDealsForYouSection(),
-              SizedBox(height: 24.h),
-            ],
-          ),
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            // App Bar
+            _buildAppBar(),
+            // TODO: Add Search Bar Section
+            _buildSearchSection(),
+            SizedBox(height: 24.h),
+            // TODO: Add Banner Section
+            _buildBannerSection(),
+            SizedBox(height: 24.h),
+            // Daily Discounts Section
+            _buildDailyDiscountsSection(),
+            SizedBox(height: 24.h),
+            // Deals for You Section
+            _buildDealsForYouSection(),
+            SizedBox(height: 24.h),
+            // Shop by Category Section
+            _buildShopByCategorySection(),
+            SizedBox(height: 24.h),
+            // Categories Section
+            _buildCategoriesSection(),
+            SizedBox(height: 24.h),
+            // Top Selling Products Section
+            _buildTopSellingProductsSection(),
+            SizedBox(height: 24.h),
+            // Popular Stores Section
+            _buildPopularStoresSection(),
+            SizedBox(height: 24.h),
+            // Recommended Products Section
+            _buildRecommendedProductsSection(),
+            SizedBox(height: 24.h),
+            // Promotional Banner Section
+            _buildPromotionalBannerSection(),
+            SizedBox(height: 24.h),
+          ],
         ),
       ),
     );
@@ -162,15 +185,43 @@ class _HomeScreenState extends State<HomeScreen> {
       child: ProductSearchBar(
         hintText: 'Search for products',
         onSearchChanged: (query) {
-          // TODO: Handle search query change
+          // Handle search query change if needed
+        },
+        onSearchSubmitted: (query) {
+          if (query.isNotEmpty) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SearchResultScreen(searchQuery: query),
+              ),
+            );
+          }
         },
         onScanPressed: () {
-          // TODO: Handle scan action
+          _showImageSearchModal();
         },
         onFilterPressed: () {
           // TODO: Navigate to filter screen
         },
       ),
+    );
+  }
+
+  /// Show image search modal with dimmed background
+  void _showImageSearchModal() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return ImageSearchModal(
+          onClose: () => Navigator.pop(context),
+          onImageSelected: () {
+            // TODO: Handle image selection
+            Navigator.pop(context);
+          },
+        );
+      },
+      barrierColor: Colors.black.withOpacity(0.4),
+      barrierDismissible: true,
     );
   }
 
@@ -221,90 +272,48 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Build daily discounts section
   Widget _buildDailyDiscountsSection() {
-    final products = [
-      ProductDiscountData(
-        imagePath: 'assets/images/watch.png',
-        productName: 'Oraimo smart-watch',
-        currentPrice: '₦ 40,000',
-        originalPrice: '₦ 80,000',
-        discountPercent: '50% Off',
-        rating: 4,
-        reviewCount: 100,
-        onAddToCart: () {
-          // TODO: Add to cart
-        },
-        onWishlistPressed: () {
-          // TODO: Add to wishlist
-        },
-      ),
-      ProductDiscountData(
-        imagePath: 'assets/images/watch.png',
-        productName: 'Airpods 3pro',
-        currentPrice: '₦ 40,000',
-        originalPrice: '₦ 80,000',
-        discountPercent: '50% Off',
-        rating: 4,
-        reviewCount: 200,
-        onAddToCart: () {
-          // TODO: Add to cart
-        },
-        onWishlistPressed: () {
-          // TODO: Add to wishlist
-        },
-      ),
-    ];
+    return const DailyDiscountsSection();
+  }
 
-    return DailyDiscountsSection(
-      products: products,
-      title: 'Daily Discounts',
-      bannerText: '3 items and get 20% Discount',
-      iconPath: 'assets/icons/solar_shop-bold.svg',
-    );
+  /// Build most purchased section
+  Widget _buildShopByCategorySection() {
+    return const MostPurchasedSection();
+  }
+
+  /// Build categories section
+  Widget _buildCategoriesSection() {
+    return const CategoriesSection();
   }
 
   /// Build deals for you section
   Widget _buildDealsForYouSection() {
-    final products = [
-      ProductDiscountData(
-        imagePath: 'assets/images/watch.png',
-        productName: 'Oraimo smart-watch',
-        currentPrice: '₦ 40,000',
-        originalPrice: '₦ 80,000',
-        discountPercent: '50% Off',
-        rating: 4,
-        reviewCount: 100,
-        onAddToCart: () {
-          // TODO: Add to cart
-        },
-        onWishlistPressed: () {
-          // TODO: Add to wishlist
-        },
-      ),
-      ProductDiscountData(
-        imagePath: 'assets/images/watch.png',
-        productName: 'Airpods 3pro',
-        currentPrice: '₦ 40,000',
-        originalPrice: '₦ 80,000',
-        discountPercent: '50% Off',
-        rating: 5,
-        reviewCount: 200,
-        onAddToCart: () {
-          // TODO: Add to cart
-        },
-        onWishlistPressed: () {
-          // TODO: Add to wishlist
-        },
-      ),
-    ];
-
     return DealsForYouSection(
-      products: products,
-      title: 'Deals made just for you',
-      subtitle:
-          'Based on your history and what is currently trending on our store',
-      buttonText: 'Shop Now',
       onShopPressed: () {
         // TODO: Navigate to deals section
+      },
+    );
+  }
+
+  /// Build top selling products section
+  Widget _buildTopSellingProductsSection() {
+    return const TopSellingProductsSection();
+  }
+
+  /// Build popular stores section
+  Widget _buildPopularStoresSection() {
+    return const PopularStoresSection();
+  }
+
+  /// Build recommended products section
+  Widget _buildRecommendedProductsSection() {
+    return const RecommendedProductsSection();
+  }
+
+  /// Build promotional banner section
+  Widget _buildPromotionalBannerSection() {
+    return PromotionalBannerSection(
+      onButtonPressed: () {
+        // TODO: Navigate to products
       },
     );
   }
