@@ -42,6 +42,20 @@ export const authorize = (...roles) => {
     };
 };
 
+export const vendor = (req, res, next) => {
+    if (req.user?.role !== "vendor") {
+        return res.status(403).json({ message: "Access denied" });
+    }
+    next();
+};
+
+export const admin = (req, res, next) => {
+    if (req.user?.role !== "admin") {
+        return res.status(403).json({ message: "Access denied" });
+    }
+    next();
+};
+
 // Allows vendors who have verified email to access onboarding endpoints
 // using a dedicated onboarding token (or a normal auth token).
 export const protectVendorOnboarding = async (req, res, next) => {

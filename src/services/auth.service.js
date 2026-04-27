@@ -3,13 +3,64 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import { sendEmail } from "./email.service.js";
+import { config } from "../config/env.js";
 
 const generateToken = (user) => {
   return jwt.sign(
     { id: user._id, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
+    config.jwtSecret,
+    { expiresIn: config.jwtExpiresIn }
   );
+};
+
+export const registerUser = async (userData) => {
+    const { email, password, firstName, lastName, role = "customer" } = userData;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+        const error = new Error("Email already registered");
+        error.statusCode = 409;
+        throw error;
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user
+    const user = await User.create({
+        email,
+        password: hashedPassword,
+        firstName,
+        lastName,
+        role,
+    });
+
+    // Generate token
+    const token = generateToken(user);
+
+    // Send welcome email
+    try {
+        await sendEmail({
+            to: user.email,
+            subject: "Welcome to PurseByNextGenPurse",
+            html: `<p>Welcome ${firstName}! Your account has been created successfully.</p>`,
+        });
+    } catch (emailError) {
+        // Don't fail registration if email fails
+        console.warn("Failed to send welcome email:", emailError.message);
+    }
+
+    return {
+        token,
+        user: {
+            id: user._id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role,
+        },
+    };
 };
 
 export const loginUser = async (email, password) => {
@@ -20,7 +71,7 @@ export const loginUser = async (email, password) => {
 
         // Check password exists
         if (!user.password) {
-        throw new Error("Complete onboarding before login");
+            throw new Error("Complete onboarding before login");
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
@@ -30,12 +81,12 @@ export const loginUser = async (email, password) => {
 
         // Vendor restriction: require full onboarding completion before login.
         if (user.role === "vendor") {
-        if (!user.isEmailVerified) {
-            throw new Error("Verify email before login");
-        }
-        if (user.onboardingStep !== "approved") {
-            throw new Error("Complete onboarding before login");
-        }
+            if (!user.isEmailVerified) {
+                throw new Error("Verify email before login");
+            }
+            if (user.onboardingStep !== "approved") {
+                throw new Error("Complete onboarding before login");
+            }
         }
 
         const token = generateToken(user);
@@ -43,7 +94,7 @@ export const loginUser = async (email, password) => {
         return { token };
 
     } catch (error) {
-        throw new Error(error.message);
+        throw error;
     }
 };
 
@@ -64,8 +115,7 @@ export const forgotPassword = async (email) => {
 
     await user.save();
 
-    const baseUrl =
-        process.env.CLIENT_URL || "http://localhost:3000";
+    const baseUrl = process.env.CLIENT_URL || "http://localhost:3000";
 
     const link = `${baseUrl}/reset-password/${rawToken}`;
 

@@ -8,7 +8,7 @@ export const registerVendor = async (req, res, next) => {
         const user = await vendorService.registerVendor(email);
 
         res.status(201).json({
-        message: "OTP sent to email",
+        message: "Verification OTP sent to email",
         userId: user._id
         });
 

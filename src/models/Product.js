@@ -27,9 +27,14 @@ const ProductSchema = new mongoose.Schema({
         default: 'fixed'
     },
     category: {
-        type: String,
+        type: mongoose.Schema.Types.ObjectId,
         ref: 'Category',
         required: true
+    },
+    subCategory: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Category',
+        default: null
     },
     stock: {
         type: Number,
@@ -50,10 +55,10 @@ const ProductSchema = new mongoose.Schema({
     expiryDate: {
         type: Date
     },
-    images: [{
+    images: {
         type: [String],
         required: true
-    }],
+    },
     ratingsCount: {
         type: Number,
         default: 0,
@@ -62,12 +67,13 @@ const ProductSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
-    createdAt: {
-        type: Date,
-        default: Date.now
-    }
 }, {timestamps: true});
 
-ProductSchema.index({ name: "text", description: "text" });
+
+// Indexes for search and filtering
+ProductSchema.index({ productName: "text", description: "text" }); // search
+ProductSchema.index({ category: 1 });
+ProductSchema.index({ subCategory: 1 });
+ProductSchema.index({ price: 1 });
 
 export default mongoose.model('Product', ProductSchema);

@@ -86,11 +86,34 @@ const UserSchema = new mongoose.Schema({
             isDefault: { type: Boolean, default: false }
         }
     ],
+    wishlist: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Product"
+        }
+    ],
     createdAt: { 
         type: Date, 
         default: Date.now 
     },
 
 }, { timestamps: true });
+
+UserSchema.virtual('store', {
+    ref: 'Store',
+    localField: '_id',
+    foreignField: 'vendor',
+    justOne: true
+});
+
+UserSchema.virtual('vendorProfile', {
+    ref: 'VendorProfile',
+    localField: '_id',
+    foreignField: 'user',
+    justOne: true
+});
+
+UserSchema.set('toObject', { virtuals: true });
+UserSchema.set('toJSON', { virtuals: true });
 
 export default mongoose.model('User', UserSchema);

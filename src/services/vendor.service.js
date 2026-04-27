@@ -52,7 +52,7 @@ export const registerVendor = async (email) => {
         return user;
 
     } catch (error) {
-        throw new Error(error.message);
+        throw error;
     }
 };
 
@@ -77,7 +77,7 @@ export const resendVendorOTP = async (email) => {
         return true;
 
     } catch (error) {
-        throw new Error(error.message);
+        throw error;
     }
 };
 
@@ -106,7 +106,7 @@ export const verifyVendorOTP = async (email, otp) => {
         return { token };
 
     } catch (error) {
-        throw new Error(error.message);
+        throw error;
     }
 };
 
@@ -140,7 +140,7 @@ export const updateVendorProfile = async (userId, data) => {
         return { profile, avatar: user.avatar };
 
     } catch (error) {
-        throw new Error(error.message);
+        throw error;
     }
 };
 
@@ -153,23 +153,16 @@ export const createStore = async (userId, data) => {
 
         if (!data.category) throw new Error("Category is required");
 
-        let category = null;
         const categoryValue = String(data.category).trim();
+        if (!mongoose.Types.ObjectId.isValid(categoryValue)) {
+            throw new Error("Invalid category");
+        }
 
-        if (mongoose.Types.ObjectId.isValid(categoryValue)) {
-        category = await Category.findById(categoryValue);
-        } else {
-        category = await Category.findOne({
-            name: { $regex: `^${categoryValue}$`, $options: "i" }
+        const category = await Category.findOne({
+            _id: categoryValue,
+            level: 1,
+            isActive: true
         });
-
-        if (!category) {
-            category = await Category.create({
-            name: categoryValue,
-            level: 1
-            });
-        }
-        }
 
         if (!category) throw new Error("Category not found");
 
@@ -191,7 +184,7 @@ export const createStore = async (userId, data) => {
         return store;
 
     } catch (error) {
-        throw new Error(error.message);
+        throw error;
     }
 };
 
@@ -212,7 +205,7 @@ export const setVendorPassword = async (userId, password) => {
         return true;
 
     } catch (error) {
-        throw new Error(error.message);
+        throw error;
     }
 };
 
@@ -244,7 +237,7 @@ export const uploadVendorDocuments = async (userId, documents) => {
         return profile;
 
     } catch (error) {
-        throw new Error(error.message);
+        throw error;
     }
 };
 
@@ -261,6 +254,6 @@ export const submitForReview = async (userId) => {
         return true;
 
     } catch (error) {
-        throw new Error(error.message);
+        throw error;
     }
 };
