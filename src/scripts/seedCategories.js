@@ -1,48 +1,37 @@
 import "dotenv/config";
-import mongoose from "mongoose";
-import { connectDB } from "../config/db.js";
-import Category from "../models/Category.js";
+import prisma from "../config/prismaClient.js";
+import { connectDB, disconnectDB } from "../config/db.js";
 import { categorySeed } from "../seeds/categories.seed.js";
 
 const normalize = (value) => String(value || "").trim();
 
-const upsertCategory = async ({ name, level, parent = null }) => {
+const upsertCategory = async ({ name, level, parentId = null }) => {
   const categoryName = normalize(name);
-  if (!categoryName) {
-    throw new Error("Category name is required");
+  if (!categoryName) throw new Error("Category name is required");
+
+  const existing = await prisma.category.findFirst({
+    where: { name: categoryName, level, parentId },
+  });
+
+  if (existing) {
+    return prisma.category.update({
+      where: { id: existing.id },
+      data: { isActive: true },
+    });
   }
 
-  const filter = {
-    name: categoryName,
-    level,
-    parent: parent || null
-  };
-
-  const update = {
-    $setOnInsert: {
-      name: categoryName,
-      level,
-      parent: parent || null
-    },
-    $set: {
-      isActive: true
-    }
-  };
-
-  return Category.findOneAndUpdate(filter, update, {
-    new: true,
-    upsert: true
+  return prisma.category.create({
+    data: { name: categoryName, level, parentId, isActive: true },
   });
 };
 
 const seedCategories = async () => {
   await connectDB();
 
-  // Common bad seed from clients accidentally sending objects (String(obj) => "[object Object]")
-  await Category.updateMany(
-    { name: "[object Object]" },
-    { $set: { isActive: false } }
-  );
+  await prisma.category.updateMany({
+    where: { name: "[object Object]" },
+    data: { isActive: false },
+  });
 
   if (!Array.isArray(categorySeed) || categorySeed.length === 0) {
     console.log("No categories found in src/seeds/categories.seed.js; nothing to seed.");
@@ -56,26 +45,15 @@ const seedCategories = async () => {
     const parentName = normalize(parentEntry?.name);
     if (!parentName) continue;
 
-    const parentDoc = await upsertCategory({
-      name: parentName,
-      level: 1,
-      parent: null
-    });
+    const parentDoc = await upsertCategory({ name: parentName, level: 1 });
     parentCount += 1;
 
-    const subs = Array.isArray(parentEntry?.subCategories)
-      ? parentEntry.subCategories
-      : [];
-
+    const subs = Array.isArray(parentEntry?.subCategories) ? parentEntry.subCategories : [];
     for (const subName of subs) {
       const subCategoryName = normalize(subName);
       if (!subCategoryName) continue;
 
-      await upsertCategory({
-        name: subCategoryName,
-        level: 2,
-        parent: parentDoc._id
-      });
+      await upsertCategory({ name: subCategoryName, level: 2, parentId: parentDoc.id });
       subCount += 1;
     }
   }
@@ -89,5 +67,5 @@ try {
   console.error("Category seeding failed:", error?.message || error);
   process.exitCode = 1;
 } finally {
-  await mongoose.disconnect();
+  await disconnectDB();
 }

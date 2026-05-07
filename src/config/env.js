@@ -1,11 +1,6 @@
 import { randomBytes } from "crypto";
 
-// Validate required environment variables
-const requiredEnvVars = [
-  "MONGO_URI",
-  "JWT_SECRET",
-  "CLIENT_URL",
-];
+const requiredEnvVars = ["DATABASE_URL", "JWT_SECRET", "CLIENT_URL"];
 
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 if (missingVars.length > 0) {
@@ -19,7 +14,7 @@ const getJwtSecret = () => {
     console.warn(" WARNING: JWT_SECRET is missing or too weak. Generating a strong random secret.");
     console.warn(" Please set JWT_SECRET in your .env file for production (min 64 characters).");
     const generated = randomBytes(64).toString("hex");
-    console.log(` Generated JWT Secret: ${generated}`);
+    console.warn(" WARNING: Using auto-generated JWT_SECRET. This will change on restart. Use environment variable in production.");
     return generated;
   }
   return secret;
@@ -31,8 +26,7 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || "development",
 
   // Database
-  mongoUri: process.env.MONGO_URI,
-  mongoUriTest: process.env.MONGO_URI_TEST,
+  databaseUrl: process.env.DATABASE_URL,
 
   // JWT
   jwtSecret: getJwtSecret(),

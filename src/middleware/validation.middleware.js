@@ -42,7 +42,7 @@ export const placeOrderValidation = [
 ];
 
 export const updateOrderStatusValidation = [
-  param("id").isMongoId().withMessage("Invalid order ID"),
+  param("id").isInt({ min: 1 }).toInt().withMessage("Invalid order ID"),
   body("status").isIn([
     "Order Received",
     "confirmed",
@@ -55,13 +55,13 @@ export const updateOrderStatusValidation = [
 ];
 
 export const cancelOrderValidation = [
-  param("id").isMongoId().withMessage("Invalid order ID"),
+  param("id").isInt({ min: 1 }).toInt().withMessage("Invalid order ID"),
   validate,
 ];
 
 // Payment validations
 export const initializePaymentValidation = [
-  body("orderId").optional().isMongoId().withMessage("Invalid order ID"),
+  body("orderId").optional().isInt({ min: 1 }).toInt().withMessage("Invalid order ID"),
   body("orderIds").optional().isArray().withMessage("orderIds must be an array"),
   body("paymentMethod").isIn([
     "card",
@@ -85,19 +85,19 @@ export const createProductValidation = [
   body("description").optional().trim(),
   body("price").isFloat({ min: 0 }).withMessage("Price must be a non-negative number"),
   body("stock").optional().isInt({ min: 0 }).withMessage("Stock must be a non-negative integer"),
-  body("category").optional().isMongoId().withMessage("Invalid category ID"),
+  body("category").optional().isInt({ min: 1 }).toInt().withMessage("Invalid category ID"),
   validate,
 ];
 
 // Cart validations
 export const addToCartValidation = [
-  body("productId").isMongoId().withMessage("Invalid product ID"),
+  body("productId").isInt({ min: 1 }).toInt().withMessage("Invalid product ID"),
   body("quantity").isInt({ min: 1 }).withMessage("Quantity must be at least 1"),
   validate,
 ];
 
 export const updateCartValidation = [
-  param("id").isMongoId().withMessage("Invalid cart ID"),
+  param("id").isInt({ min: 1 }).toInt().withMessage("Invalid cart ID"),
   body("quantity").isInt({ min: 1 }).withMessage("Quantity must be at least 1"),
   validate,
 ];
@@ -115,13 +115,13 @@ export const updateProfileValidation = [
 export const createStoreValidation = [
   body("storeName").trim().notEmpty().withMessage("Store name is required"),
   body("description").optional().trim(),
-  body("category").optional().isMongoId().withMessage("Invalid category ID"),
+  body("category").optional().isInt({ min: 1 }).toInt().withMessage("Invalid category ID"),
   validate,
 ];
 
 // Review validations
 export const createReviewValidation = [
-  body("productId").isMongoId().withMessage("Invalid product ID"),
+  body("productId").isInt({ min: 1 }).toInt().withMessage("Invalid product ID"),
   body("rating").isInt({ min: 1, max: 5 }).withMessage("Rating must be between 1 and 5"),
   body("comment").optional().trim(),
   validate,
@@ -129,7 +129,7 @@ export const createReviewValidation = [
 
 // Wishlist validations
 export const addToWishlistValidation = [
-  body("productId").isMongoId().withMessage("Invalid product ID"),
+  body("productId").isInt({ min: 1 }).toInt().withMessage("Invalid product ID"),
   validate,
 ];
 
@@ -147,5 +147,43 @@ export const createAddressValidation = [
 export const paginationValidation = [
   query("page").optional().isInt({ min: 1 }).withMessage("Page must be a positive integer"),
   query("limit").optional().isInt({ min: 1, max: 100 }).withMessage("Limit must be between 1 and 100"),
+  validate,
+];
+
+// Chat validations
+export const listAdminChatUsersValidation = [
+  query("role").optional().isIn(["admin", "customer", "vendor", "rider"]).withMessage("Invalid role"),
+  query("search").optional().trim(),
+  validate,
+];
+
+export const listConversationsValidation = [
+  query("role").optional().isIn(["customer", "vendor", "rider"]).withMessage("Invalid role"),
+  query("page").optional().isInt({ min: 1 }).withMessage("Page must be a positive integer"),
+  query("limit").optional().isInt({ min: 1, max: 100 }).withMessage("Limit must be between 1 and 100"),
+  validate,
+];
+
+export const startConversationValidation = [
+  body("participantId").isInt({ min: 1 }).toInt().withMessage("participantId must be a valid integer"),
+  validate,
+];
+
+export const getMessagesValidation = [
+  param("conversationId").isInt({ min: 1 }).toInt().withMessage("Conversation ID must be a valid integer"),
+  query("page").optional().isInt({ min: 1 }).withMessage("Page must be a positive integer"),
+  query("limit").optional().isInt({ min: 1, max: 100 }).withMessage("Limit must be between 1 and 100"),
+  validate,
+];
+
+export const sendMessageValidation = [
+  param("conversationId").isInt({ min: 1 }).toInt().withMessage("Conversation ID must be a valid integer"),
+  body("body").trim().notEmpty().withMessage("Message body is required"),
+  body("body").isLength({ max: 5000 }).withMessage("Message cannot exceed 5000 characters"),
+  validate,
+];
+
+export const markConversationReadValidation = [
+  param("conversationId").isInt({ min: 1 }).toInt().withMessage("Conversation ID must be a valid integer"),
   validate,
 ];

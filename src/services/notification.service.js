@@ -1,254 +1,179 @@
-import Notification from '../models/Notification.js';
+import prisma from "../config/prismaClient.js";
+import { toIntId, withMongoId } from "../utils/prismaHelpers.js";
+
+const getEntityId = (value) => toIntId(value?.id ?? value?._id ?? value, "recipient id");
 
 class NotificationService {
-    // Create a new notification
-    async createNotification(recipientId, title, message, type, data = {}, priority = 'medium') {
-        try {
-            return await Notification.create({
-                recipient: recipientId,
-                title,
-                message,
-                type,
-                data,
-                priority,
-                isRead: false,
-            });
-        } catch (error) {
-            console.error('Error creating notification:', error);
-            throw error;
-        }
-    }
+  async createNotification(recipientId, title, message, type, data = {}, priority = "medium") {
+    const notification = await prisma.notification.create({
+      data: {
+        recipientId: getEntityId(recipientId),
+        title,
+        message,
+        type,
+        data,
+        priority,
+        isRead: false,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    });
+    return withMongoId(notification);
+  }
 
-    // Get notifications for a user
-    async getUserNotifications(userId, page = 1, limit = 20, includeRead = true) {
-        try {
-            const query = { recipient: userId };
-            if (!includeRead) {
-                query.isRead = false;
-            }
+  async getUserNotifications(userId, page = 1, limit = 20, includeRead = true) {
+    const id = getEntityId(userId);
+    const take = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const currentPage = Math.max(1, parseInt(page, 10) || 1);
+    const where = { recipientId: id };
+    if (!includeRead) where.isRead = false;
 
-            const notifications = await Notification.find(query)
-                .sort({ createdAt: -1 })
-                .limit(limit * 1)
-                .skip((page - 1) * limit)
-                .lean();
+    const [notifications, total] = await Promise.all([
+      prisma.notification.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (currentPage - 1) * take,
+        take,
+      }),
+      prisma.notification.count({ where }),
+    ]);
 
-            const total = await Notification.countDocuments(query);
-            const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(total / take);
+    return {
+      notifications: withMongoId(notifications),
+      pagination: {
+        currentPage,
+        totalPages,
+        totalNotifications: total,
+        hasNext: currentPage < totalPages,
+        hasPrev: currentPage > 1,
+      },
+    };
+  }
 
-            return {
-                notifications,
-                pagination: {
-                    currentPage: page,
-                    totalPages,
-                    totalNotifications: total,
-                    hasNext: page < totalPages,
-                    hasPrev: page > 1
-                }
-            };
-        } catch (error) {
-            console.error('Error fetching notifications:', error);
-            throw error;
-        }
-    }
+  async markAsRead(notificationId, userId) {
+    const notification = await prisma.notification.findFirst({
+      where: { id: toIntId(notificationId, "notification id"), recipientId: getEntityId(userId) },
+    });
+    if (!notification) throw new Error("Notification not found or access denied");
 
-    // Mark notification as read
-    async markAsRead(notificationId, userId) {
-        try {
-            const notification = await Notification.findOneAndUpdate(
-                { _id: notificationId, recipient: userId },
-                { isRead: true, readAt: new Date() },
-                { new: true }
-            );
+    return withMongoId(await prisma.notification.update({
+      where: { id: notification.id },
+      data: { isRead: true, readAt: new Date() },
+    }));
+  }
 
-            if (!notification) {
-                throw new Error('Notification not found or access denied');
-            }
+  async markAllAsRead(userId) {
+    const result = await prisma.notification.updateMany({
+      where: { recipientId: getEntityId(userId), isRead: false },
+      data: { isRead: true, readAt: new Date() },
+    });
+    return { modifiedCount: result.count, count: result.count };
+  }
 
-            return notification;
-        } catch (error) {
-            console.error('Error marking notification as read:', error);
-            throw error;
-        }
-    }
+  async getUnreadCount(userId) {
+    return prisma.notification.count({ where: { recipientId: getEntityId(userId), isRead: false } });
+  }
 
-    // Mark all notifications as read for a user
-    async markAllAsRead(userId) {
-        try {
-            const result = await Notification.updateMany(
-                { recipient: userId, isRead: false },
-                { isRead: true, readAt: new Date() }
-            );
-            return result;
-        } catch (error) {
-            console.error('Error marking all notifications as read:', error);
-            throw error;
-        }
-    }
+  async deleteNotification(notificationId, userId) {
+    const notification = await prisma.notification.findFirst({
+      where: { id: toIntId(notificationId, "notification id"), recipientId: getEntityId(userId) },
+    });
+    if (!notification) throw new Error("Notification not found or access denied");
+    return withMongoId(await prisma.notification.delete({ where: { id: notification.id } }));
+  }
 
-    // Get unread count for a user
-    async getUnreadCount(userId) {
-        try {
-            const count = await Notification.getUnreadCount(userId);
-            return count;
-        } catch (error) {
-            console.error('Error getting unread count:', error);
-            throw error;
-        }
-    }
+  async notifyOrderPlaced(order, customer) {
+    return this.createNotification(
+      customer?.id ?? customer?._id ?? customer,
+      "Order Placed Successfully",
+      `Your order #${order.orderNumber} has been placed successfully.`,
+      "order_placed",
+      { orderId: order.id ?? order._id, orderNumber: order.orderNumber, total: order.total },
+      "high"
+    );
+  }
 
-    // Delete a notification
-    async deleteNotification(notificationId, userId) {
-        try {
-            const result = await Notification.findOneAndDelete({
-                _id: notificationId,
-                recipient: userId
-            });
+  async notifyOrderStatusUpdate(order, customer, vendor = null) {
+    const recipients = [customer?.id ?? customer?._id ?? customer];
+    if (vendor) recipients.push(vendor?.id ?? vendor?._id ?? vendor);
 
-            if (!result) {
-                throw new Error('Notification not found or access denied');
-            }
+    return Promise.all(recipients.map((recipientId) =>
+      this.createNotification(
+        recipientId,
+        "Order Status Update",
+        `Order #${order.orderNumber} status updated to: ${order.currentStatus}`,
+        "order_status_update",
+        { orderId: order.id ?? order._id, orderNumber: order.orderNumber, status: order.currentStatus },
+        "medium"
+      )
+    ));
+  }
 
-            return result;
-        } catch (error) {
-            console.error('Error deleting notification:', error);
-            throw error;
-        }
-    }
+  async notifyVendorApproved(vendor) {
+    return this.createNotification(
+      vendor.id ?? vendor._id,
+      "Vendor Application Approved",
+      "Congratulations! Your vendor application has been approved. You can now start selling products.",
+      "vendor_approved",
+      { vendorId: vendor.id ?? vendor._id, approvedAt: new Date() },
+      "high"
+    );
+  }
 
-    // Predefined notification templates
-    async notifyOrderPlaced(order, customer) {
-        const customerId = customer?._id || customer;
-        return this.createNotification(
-            customerId,
-            'Order Placed Successfully',
-            `Your order #${order.orderNumber} has been placed successfully.`,
-            'order_placed',
-            {
-                orderId: order._id,
-                orderNumber: order.orderNumber,
-                total: order.total
-            },
-            'high'
-        );
-    }
+  async notifyVendorRejected(vendor, reason = "") {
+    return this.createNotification(
+      vendor.id ?? vendor._id,
+      "Vendor Application Rejected",
+      `Your vendor application has been rejected.${reason ? ` Reason: ${reason}` : ""}`,
+      "vendor_rejected",
+      { vendorId: vendor.id ?? vendor._id, rejectedAt: new Date(), reason },
+      "medium"
+    );
+  }
 
-    async notifyOrderStatusUpdate(order, customer, vendor = null) {
-        const customerId = customer?._id || customer;
-        const vendorId = vendor?._id || vendor;
+  async notifyPaymentReceived(order, customer) {
+    return this.createNotification(
+      customer?.id ?? customer?._id ?? customer,
+      "Payment Received",
+      `Payment for order #${order.orderNumber} has been received successfully.`,
+      "payment_received",
+      { orderId: order.id ?? order._id, orderNumber: order.orderNumber, amount: order.payment?.total },
+      "high"
+    );
+  }
 
-        const recipients = [customerId];
-        if (vendorId) recipients.push(vendorId);
+  async notifyNewReview(product, vendor, review) {
+    return this.createNotification(
+      vendor.id ?? vendor._id,
+      "New Product Review",
+      `Your product "${product.productName}" received a ${review.rating}-star review.`,
+      "new_review",
+      { productId: product.id ?? product._id, productName: product.productName, reviewId: review.id ?? review._id, rating: review.rating },
+      "low"
+    );
+  }
 
-        const notifications = recipients.map(recipientId =>
-            this.createNotification(
-                recipientId,
-                'Order Status Update',
-                `Order #${order.orderNumber} status updated to: ${order.currentStatus}`,
-                'order_status_update',
-                {
-                    orderId: order._id,
-                    orderNumber: order.orderNumber,
-                    status: order.currentStatus
-                },
-                'medium'
-            )
-        );
+  async notifyDeliveryAssigned(order, customer, rider) {
+    return this.createNotification(
+      customer?.id ?? customer?._id ?? customer,
+      "Delivery Assigned",
+      `A delivery rider has been assigned to your order #${order.orderNumber}.`,
+      "delivery_assigned",
+      { orderId: order.id ?? order._id, orderNumber: order.orderNumber, riderName: rider.name, riderPhone: rider.phone },
+      "medium"
+    );
+  }
 
-        return Promise.all(notifications);
-    }
-
-    async notifyVendorApproved(vendor) {
-        return this.createNotification(
-            vendor._id,
-            'Vendor Application Approved',
-            'Congratulations! Your vendor application has been approved. You can now start selling products.',
-            'vendor_approved',
-            {
-                vendorId: vendor._id,
-                approvedAt: new Date()
-            },
-            'high'
-        );
-    }
-
-    async notifyVendorRejected(vendor, reason = '') {
-        return this.createNotification(
-            vendor._id,
-            'Vendor Application Rejected',
-            `Your vendor application has been rejected.${reason ? ` Reason: ${reason}` : ''}`,
-            'vendor_rejected',
-            {
-                vendorId: vendor._id,
-                rejectedAt: new Date(),
-                reason
-            },
-            'medium'
-        );
-    }
-
-    async notifyPaymentReceived(order, customer) {
-        const customerId = customer?._id || customer;
-        return this.createNotification(
-            customerId,
-            'Payment Received',
-            `Payment for order #${order.orderNumber} has been received successfully.`,
-            'payment_received',
-            {
-                orderId: order._id,
-                orderNumber: order.orderNumber,
-                amount: order.payment.total
-            },
-            'high'
-        );
-    }
-
-    async notifyNewReview(product, vendor, review) {
-        return this.createNotification(
-            vendor._id,
-            'New Product Review',
-            `Your product "${product.productName}" received a ${review.rating}-star review.`,
-            'new_review',
-            {
-                productId: product._id,
-                productName: product.productName,
-                reviewId: review._id,
-                rating: review.rating
-            },
-            'low'
-        );
-    }
-
-    async notifyDeliveryAssigned(order, customer, rider) {
-        return this.createNotification(
-            customer._id,
-            'Delivery Assigned',
-            `A delivery rider has been assigned to your order #${order.orderNumber}.`,
-            'delivery_assigned',
-            {
-                orderId: order._id,
-                orderNumber: order.orderNumber,
-                riderName: rider.name,
-                riderPhone: rider.phone
-            },
-            'medium'
-        );
-    }
-
-    async notifyDeliveryCompleted(order, customer) {
-        return this.createNotification(
-            customer._id,
-            'Order Delivered',
-            `Your order #${order.orderNumber} has been delivered successfully.`,
-            'delivery_completed',
-            {
-                orderId: order._id,
-                orderNumber: order.orderNumber,
-                deliveredAt: new Date()
-            },
-            'high'
-        );
-    }
+  async notifyDeliveryCompleted(order, customer) {
+    return this.createNotification(
+      customer?.id ?? customer?._id ?? customer,
+      "Order Delivered",
+      `Your order #${order.orderNumber} has been delivered successfully.`,
+      "delivery_completed",
+      { orderId: order.id ?? order._id, orderNumber: order.orderNumber, deliveredAt: new Date() },
+      "high"
+    );
+  }
 }
 
 export default new NotificationService();

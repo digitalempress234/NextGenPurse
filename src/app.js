@@ -25,6 +25,7 @@ import adminRoutes from "./routes/admin.routes.js";
 import categoryRoutes from "./routes/category.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import wishlistRoutes from "./routes/wishlist.routes.js";
+import chatRoutes from "./routes/chat.routes.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 
 const app = express();
@@ -97,18 +98,31 @@ app.use(requestLogger);
  *                 database:
  *                   type: string
  */
+// Health check endpoint
 app.get("/health", async (req, res) => {
-  const mongoose = await import("mongoose");
-  const dbStatus = mongoose.default.connection.readyState === 1 ? "connected" : "disconnected";
+  try {
+    const prisma = (await import("./config/prismaClient.js")).default;
 
-  res.status(dbStatus === "connected" ? 200 : 503).json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    environment: config.nodeEnv,
-    uptime: process.uptime(),
-    database: dbStatus,
-    version: "1.0.0",
-  });
+    await prisma.$queryRaw`SELECT 1`;
+
+    return res.status(200).json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      environment: config.nodeEnv,
+      uptime: process.uptime(),
+      database: "connected",
+      version: "1.0.0",
+    });
+  } catch (err) {
+    return res.status(503).json({
+      status: "error",
+      timestamp: new Date().toISOString(),
+      environment: config.nodeEnv,
+      uptime: process.uptime(),
+      database: "disconnected",
+      version: "1.0.0",
+    });
+  }
 });
 
 // API Documentation
@@ -135,6 +149,8 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/wishlist", wishlistRoutes);
+app.use("/api/chat", chatRoutes);
+app.use("/api/admin/chat", chatRoutes);
 
 // Root endpoint
 /**

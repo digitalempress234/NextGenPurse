@@ -1,9 +1,7 @@
 import notificationService from '../services/notification.service.js';
 import asyncHandler from 'express-async-handler';
 
-// @desc    Get user notifications
-// @route   GET /api/notifications
-// @access  Private
+
 export const getNotifications = asyncHandler(async (req, res) => {
     const userId = req.user._id;
     const { page = 1, limit = 20, includeRead = 'true' } = req.query;
@@ -22,9 +20,6 @@ export const getNotifications = asyncHandler(async (req, res) => {
     });
 });
 
-// @desc    Get unread notifications count
-// @route   GET /api/notifications/unread-count
-// @access  Private
 export const getUnreadCount = asyncHandler(async (req, res) => {
     const userId = req.user._id;
     const count = await notificationService.getUnreadCount(userId);
@@ -35,9 +30,6 @@ export const getUnreadCount = asyncHandler(async (req, res) => {
     });
 });
 
-// @desc    Mark notification as read
-// @route   PUT /api/notifications/:id/read
-// @access  Private
 export const markAsRead = asyncHandler(async (req, res) => {
     const userId = req.user._id;
     const notificationId = req.params.id;
@@ -51,9 +43,6 @@ export const markAsRead = asyncHandler(async (req, res) => {
     });
 });
 
-// @desc    Mark all notifications as read
-// @route   PUT /api/notifications/mark-all-read
-// @access  Private
 export const markAllAsRead = asyncHandler(async (req, res) => {
     const userId = req.user._id;
     const result = await notificationService.markAllAsRead(userId);
@@ -65,9 +54,6 @@ export const markAllAsRead = asyncHandler(async (req, res) => {
     });
 });
 
-// @desc    Delete notification
-// @route   DELETE /api/notifications/:id
-// @access  Private
 export const deleteNotification = asyncHandler(async (req, res) => {
     const userId = req.user._id;
     const notificationId = req.params.id;

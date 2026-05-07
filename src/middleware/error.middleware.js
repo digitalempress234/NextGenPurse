@@ -16,23 +16,21 @@ export const errorHandler = (err, req, res, next) => {
 
   let message = err.message || "Server error";
 
-  // Mongoose validation error
-  if (err.name === "ValidationError") {
-    statusCode = err.statusCode || 400;
-    message = Object.values(err.errors).map((e) => e.message).join(", ");
-  }
-
-  // Mongoose duplicate key error
-  if (err.code === 11000) {
-    statusCode = err.statusCode || 409;
-    const field = Object.keys(err.keyValue || {})[0] || "field";
+  // Prisma known request errors
+  if (err.code === "P2002") {
+    statusCode = 409;
+    const field = Array.isArray(err.meta?.target) ? err.meta.target.join(", ") : "field";
     message = `${field} already exists`;
   }
 
-  // Mongoose cast error (invalid ID format)
-  if (err.name === "CastError") {
-    statusCode = err.statusCode || 400;
-    message = `Invalid ${err.path}`;
+  if (err.code === "P2025") {
+    statusCode = 404;
+    message = "Record not found";
+  }
+
+  if (err.code === "P2003") {
+    statusCode = 400;
+    message = "Invalid related record";
   }
 
   // Multer error

@@ -1,411 +1,261 @@
-import Product from "../models/Product.js";
-import Store from "../models/Store.js";
-import Category from "../models/Category.js";
-import mongoose from "mongoose";
+import prisma from "../config/prismaClient.js";
 import { createHttpError } from "../utils/httpError.js";
+import { toIntId, withMongoId } from "../utils/prismaHelpers.js";
 
-const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-const isValidObjectId = (value) => {
-    const v = String(value || "").trim();
-    return v && mongoose.Types.ObjectId.isValid(v);
+const productInclude = {
+  store: { select: { id: true, storeName: true } },
+  category: { select: { id: true, name: true, parentId: true } },
+  subCategory: { select: { id: true, name: true, parentId: true } },
 };
+
+const productPayload = (product) => {
+  if (!product) return product;
+  return withMongoId({
+    ...product,
+    store: product.store ?? product.storeId,
+    category: product.category ?? product.categoryId,
+    subCategory: product.subCategory ?? product.subCategoryId,
+  });
+};
+
+const escapeLike = (value) => String(value).trim();
 
 const resolveCategoryIds = async ({ category, subCategory }, existingProduct = null) => {
-    const categoryProvided = typeof category !== "undefined";
-    const subCategoryProvided = typeof subCategory !== "undefined";
+  const categoryProvided = typeof category !== "undefined";
+  const subCategoryProvided = typeof subCategory !== "undefined";
 
-    let categoryId = existingProduct ? existingProduct.category : null;
-    let subCategoryId = existingProduct ? existingProduct.subCategory : null;
+  let categoryId = existingProduct?.categoryId ?? null;
+  let subCategoryId = existingProduct?.subCategoryId ?? null;
 
-    if (categoryProvided) {
-        if (!category) {
-            throw createHttpError("Category is required", 400);
-        }
+  if (categoryProvided) {
+    if (!category) throw createHttpError("Category is required", 400);
 
-        if (typeof category === "object" && !isValidObjectId(category)) {
-            throw createHttpError("Invalid category. Use a category id from /api/categories", 400);
-        }
+    const categoryWhere = Number.isInteger(Number(category))
+      ? { id: toIntId(category, "category id") }
+      : { name: { equals: escapeLike(category) } };
 
-        const categoryFilter = isValidObjectId(category)
-            ? { _id: String(category).trim() }
-            : { name: { $regex: new RegExp(`^${escapeRegex(String(category).trim())}$`, "i") } };
+    const categoryDoc = await prisma.category.findFirst({
+      where: { ...categoryWhere, level: 1, isActive: true },
+    });
 
-        const categoryDoc = await Category.findOne({
-            ...categoryFilter,
-            level: 1,
-            isActive: true
-        }).select("_id");
+    if (!categoryDoc) throw createHttpError("Category not found", 404);
+    categoryId = categoryDoc.id;
+  }
 
-        if (!categoryDoc) throw createHttpError("Category not found", 404);
-        categoryId = categoryDoc._id;
+  if (subCategoryProvided) {
+    if (!subCategory) {
+      subCategoryId = null;
+    } else {
+      const subCategoryWhere = Number.isInteger(Number(subCategory))
+        ? { id: toIntId(subCategory, "sub-category id") }
+        : { name: { equals: escapeLike(subCategory) } };
+
+      const subCategoryDoc = await prisma.category.findFirst({
+        where: { ...subCategoryWhere, level: 2, isActive: true },
+      });
+
+      if (!subCategoryDoc) throw createHttpError("Sub-category not found", 404);
+      subCategoryId = subCategoryDoc.id;
+
+      if (!categoryProvided && !categoryId && subCategoryDoc.parentId) categoryId = subCategoryDoc.parentId;
+      if (categoryId && subCategoryDoc.parentId && subCategoryDoc.parentId !== categoryId) {
+        throw createHttpError("Sub-category does not belong to the category", 400);
+      }
     }
+  }
 
-    if (subCategoryProvided) {
-        if (!subCategory) {
-            subCategoryId = null;
-        } else {
-            if (typeof subCategory === "object" && !isValidObjectId(subCategory)) {
-                throw createHttpError("Invalid sub-category. Use a sub-category id from /api/categories", 400);
-            }
+  if (categoryProvided && !categoryId) throw createHttpError("Category is required", 400);
 
-            const subCategoryFilter = isValidObjectId(subCategory)
-                ? { _id: String(subCategory).trim() }
-                : { name: { $regex: new RegExp(`^${escapeRegex(String(subCategory).trim())}$`, "i") } };
+  if (categoryProvided && !subCategoryProvided && subCategoryId) {
+    const subCategoryDoc = await prisma.category.findUnique({ where: { id: subCategoryId } });
+    if (subCategoryDoc?.parentId && subCategoryDoc.parentId !== categoryId) subCategoryId = null;
+  }
 
-            const subCategoryDoc = await Category.findOne({
-                ...subCategoryFilter,
-                level: 2,
-                isActive: true
-            }).select("_id parent");
-
-            if (!subCategoryDoc) throw createHttpError("Sub-category not found", 404);
-            subCategoryId = subCategoryDoc._id;
-
-            if (!categoryProvided && !categoryId && subCategoryDoc.parent) {
-                categoryId = subCategoryDoc.parent;
-            }
-
-            if (categoryId && subCategoryDoc.parent && subCategoryDoc.parent.toString() !== categoryId.toString()) {
-                throw createHttpError("Sub-category does not belong to the category", 400);
-            }
-        }
-    }
-
-    if (categoryProvided && !categoryId) {
-        throw createHttpError("Category is required", 400);
-    }
-
-    if (categoryProvided && !subCategoryProvided && subCategoryId) {
-        const subCategoryDoc = await Category.findById(subCategoryId).select("_id parent");
-        if (subCategoryDoc && subCategoryDoc.parent && subCategoryDoc.parent.toString() !== categoryId.toString()) {
-            subCategoryId = null;
-        }
-    }
-
-    return {
-        categoryId,
-        subCategoryId,
-        shouldSetCategory: categoryProvided || subCategoryProvided,
-        shouldSetSubCategory: subCategoryProvided || categoryProvided
-    };
+  return {
+    categoryId,
+    subCategoryId,
+    shouldSetCategory: categoryProvided || subCategoryProvided,
+    shouldSetSubCategory: subCategoryProvided || categoryProvided,
+  };
 };
 
+const buildProductWhere = async ({ search, category, subCategory, minPrice, maxPrice }, storeId = null) => {
+  const where = {};
+  if (storeId) where.storeId = storeId;
+
+  if (search) {
+    where.OR = [
+      { productName: { contains: String(search) } },
+      { description: { contains: String(search) } },
+    ];
+  }
+
+  if (category) {
+    const categoryDoc = await prisma.category.findFirst({
+      where: { name: { equals: String(category).trim() }, level: 1, isActive: true },
+      select: { id: true },
+    });
+    if (!categoryDoc) return null;
+    where.categoryId = categoryDoc.id;
+  }
+
+  if (subCategory) {
+    const subCategoryDoc = await prisma.category.findFirst({
+      where: { name: { equals: String(subCategory).trim() }, level: 2, isActive: true },
+      select: { id: true },
+    });
+    if (!subCategoryDoc) return null;
+    where.subCategoryId = subCategoryDoc.id;
+  }
+
+  if (minPrice || maxPrice) {
+    where.price = {};
+    if (minPrice) where.price.gte = Number(minPrice);
+    if (maxPrice) where.price.lte = Number(maxPrice);
+  }
+
+  return where;
+};
+
+const emptyPage = (page, limit) => ({
+  items: [],
+  meta: { total: 0, pages: 0, page, limit },
+});
+
 export const createProduct = async (userId, data) => {
-    try {
-        const store = await Store.findOne({ vendor: userId });
-        if (!store) throw createHttpError("Store not found", 404);
+  const store = await prisma.store.findUnique({ where: { vendorId: toIntId(userId, "user id") } });
+  if (!store) throw createHttpError("Store not found", 404);
 
-        const { categoryId, subCategoryId } = await resolveCategoryIds(
-            { category: data.category, subCategory: data.subCategory }
-        );
+  const { categoryId, subCategoryId } = await resolveCategoryIds({
+    category: data.category,
+    subCategory: data.subCategory,
+  });
 
-        const product = await Product.create({
-            ...data,
-            category: categoryId,
-            subCategory: subCategoryId || null,
-            store: store._id
-        });
+  const product = await prisma.product.create({
+    data: {
+      productName: data.productName,
+      description: data.description,
+      price: Number(data.price),
+      discountPrice: Number(data.discountPrice || 0),
+      discountPercentage: Number(data.discountPercentage || 0),
+      discountType: data.discountType || "fixed",
+      categoryId,
+      subCategoryId: subCategoryId || null,
+      stock: Number(data.stock || 0),
+      expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
+      images: Array.isArray(data.images) ? data.images : [],
+      isFeatured: Boolean(data.isFeatured),
+      storeId: store.id,
+    },
+    include: productInclude,
+  });
 
-        return product;
-
-    } catch (error) {
-        throw error;
-    }
+  return productPayload(product);
 };
 
 export const getProducts = async (query) => {
-    try {
-        const {
-            search,
-            category,
-            subCategory,
-            minPrice,
-            maxPrice,
-            page = 1,
-            limit = 10
-        } = query;
+  const pageNumber = Math.max(1, parseInt(query.page, 10) || 1);
+  const limitNumber = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 10));
+  const where = await buildProductWhere(query);
+  if (!where) return emptyPage(pageNumber, limitNumber);
 
-        const filter = {};
-        const pageNumber = Math.max(1, parseInt(page, 10) || 1);
-        const limitNumber = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+  const [total, products] = await Promise.all([
+    prisma.product.count({ where }),
+    prisma.product.findMany({
+      where,
+      include: { store: { select: { id: true, storeName: true } } },
+      orderBy: { createdAt: "desc" },
+      skip: (pageNumber - 1) * limitNumber,
+      take: limitNumber,
+    }),
+  ]);
 
-        // Search
-        if (search) {
-            filter.$text = { $search: search };
-        }
-
-        // Category
-        if (category) {
-            const categoryDoc = await Category.findOne({
-                name: { $regex: new RegExp(`^${escapeRegex(category)}$`, "i") },
-                level: 1,
-                isActive: true
-            }).select("_id");
-
-            if (!categoryDoc) {
-                return {
-                    items: [],
-                    meta: {
-                        total: 0,
-                        pages: 0,
-                        page: pageNumber,
-                        limit: limitNumber
-                    }
-                };
-            }
-
-            filter.category = categoryDoc._id;
-        }
-
-        if (subCategory) {
-            const subCategoryDoc = await Category.findOne({
-                name: { $regex: new RegExp(`^${escapeRegex(subCategory)}$`, "i") },
-                level: 2,
-                isActive: true
-            }).select("_id");
-
-            if (!subCategoryDoc) {
-                return {
-                    items: [],
-                    meta: {
-                        total: 0,
-                        pages: 0,
-                        page: pageNumber,
-                        limit: limitNumber
-                    }
-                };
-            }
-
-            filter.subCategory = subCategoryDoc._id;
-        }
-
-        // Price range
-        if (minPrice || maxPrice) {
-            filter.price = {};
-            if (minPrice) filter.price.$gte = Number(minPrice);
-            if (maxPrice) filter.price.$lte = Number(maxPrice);
-        }
-
-        const total = await Product.countDocuments(filter);
-
-        const products = await Product.find(filter)
-        .populate("store", "storeName")
-        .limit(limitNumber)
-        .skip((pageNumber - 1) * limitNumber)
-        .sort({ createdAt: -1 })
-        .lean();
-
-        const pages = limitNumber > 0 ? Math.ceil(total / limitNumber) : 0;
-
-        return {
-            items: products,
-            meta: {
-                total,
-                pages,
-                page: pageNumber,
-                limit: limitNumber
-            }
-        };
-
-    } catch (error) {
-        throw error;
-    }
+  return {
+    items: products.map(productPayload),
+    meta: { total, pages: Math.ceil(total / limitNumber), page: pageNumber, limit: limitNumber },
+  };
 };
 
 export const getProductById = async (productId) => {
-    try {
-        const rawId = String(productId || "").trim();
-        const cleanedId = rawId.startsWith(":") ? rawId.slice(1).trim() : rawId;
+  const product = await prisma.product.findUnique({
+    where: { id: toIntId(productId, "product id") },
+    include: productInclude,
+  });
 
-        if (!mongoose.Types.ObjectId.isValid(cleanedId)) {
-            const err = new Error("Invalid product id");
-            err.statusCode = 400;
-            throw err;
-        }
-
-        const product = await Product.findById(cleanedId)
-        .populate("store", "storeName")
-        .populate("category", "name parent")
-        .populate("subCategory", "name parent")
-        .lean();
-
-        if (!product) {
-            const err = new Error("Product not found");
-            err.statusCode = 404;
-            throw err;
-        }
-
-        return product;
-    } catch (error) {
-        throw error;
-    }
+  if (!product) throw createHttpError("Product not found", 404);
+  return productPayload(product);
 };
 
 export const getVendorProducts = async (userId, query) => {
-    try {
-        const store = await Store.findOne({ vendor: userId });
-        if (!store) {
-            return {
-                items: [],
-                meta: {
-                    total: 0,
-                    pages: 0,
-                    page: 1,
-                    limit: 0
-                }
-            };
-        }
+  const store = await prisma.store.findUnique({ where: { vendorId: toIntId(userId, "user id") } });
+  if (!store) return emptyPage(1, 0);
 
-        const {
-            search,
-            category,
-            subCategory,
-            minPrice,
-            maxPrice,
-            page = 1,
-            limit = 10
-        } = query;
+  const pageNumber = Math.max(1, parseInt(query.page, 10) || 1);
+  const limitNumber = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 10));
+  const where = await buildProductWhere(query, store.id);
+  if (!where) return emptyPage(pageNumber, limitNumber);
 
-        const filter = { store: store._id };
-        const pageNumber = Math.max(1, parseInt(page, 10) || 1);
-        const limitNumber = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+  const [total, products] = await Promise.all([
+    prisma.product.count({ where }),
+    prisma.product.findMany({
+      where,
+      include: productInclude,
+      orderBy: { createdAt: "desc" },
+      skip: (pageNumber - 1) * limitNumber,
+      take: limitNumber,
+    }),
+  ]);
 
-        if (search) {
-            filter.$text = { $search: search };
-        }
-
-        if (category) {
-            const categoryDoc = await Category.findOne({
-                name: { $regex: new RegExp(`^${escapeRegex(category)}$`, "i") },
-                level: 1,
-                isActive: true
-            }).select("_id");
-
-            if (!categoryDoc) {
-                return {
-                    items: [],
-                    meta: {
-                        total: 0,
-                        pages: 0,
-                        page: pageNumber,
-                        limit: limitNumber
-                    }
-                };
-            }
-            filter.category = categoryDoc._id;
-        }
-
-        if (subCategory) {
-            const subCategoryDoc = await Category.findOne({
-                name: { $regex: new RegExp(`^${escapeRegex(subCategory)}$`, "i") },
-                level: 2,
-                isActive: true
-            }).select("_id");
-
-            if (!subCategoryDoc) {
-                return {
-                    items: [],
-                    meta: {
-                        total: 0,
-                        pages: 0,
-                        page: pageNumber,
-                        limit: limitNumber
-                    }
-                };
-            }
-            filter.subCategory = subCategoryDoc._id;
-        }
-
-        if (minPrice || maxPrice) {
-            filter.price = {};
-            if (minPrice) filter.price.$gte = Number(minPrice);
-            if (maxPrice) filter.price.$lte = Number(maxPrice);
-        }
-
-        const total = await Product.countDocuments(filter);
-
-        const products = await Product.find(filter)
-        .populate("store", "storeName")
-        .populate("category", "name parent")
-        .populate("subCategory", "name parent")
-        .limit(limitNumber)
-        .skip((pageNumber - 1) * limitNumber)
-        .sort({ createdAt: -1 })
-        .lean();
-
-        const pages = limitNumber > 0 ? Math.ceil(total / limitNumber) : 0;
-
-        return {
-            items: products,
-            meta: {
-                total,
-                pages,
-                page: pageNumber,
-                limit: limitNumber
-            }
-        };
-    } catch (error) {
-        throw error;
-    }
+  return {
+    items: products.map(productPayload),
+    meta: { total, pages: Math.ceil(total / limitNumber), page: pageNumber, limit: limitNumber },
+  };
 };
 
 export const updateProduct = async (userId, productId, data) => {
-    try {
-        const store = await Store.findOne({ vendor: userId });
-        if (!store) throw createHttpError("Store not found", 404);
+  const store = await prisma.store.findUnique({ where: { vendorId: toIntId(userId, "user id") } });
+  if (!store) throw createHttpError("Store not found", 404);
 
-        const existing = await Product.findOne({ _id: productId, store: store._id });
-        if (!existing) {
-            const err = new Error("Product not found");
-            err.statusCode = 404;
-            throw err;
-        }
+  const id = toIntId(productId, "product id");
+  const existing = await prisma.product.findFirst({ where: { id, storeId: store.id } });
+  if (!existing) throw createHttpError("Product not found", 404);
 
-        const { categoryId, subCategoryId, shouldSetCategory, shouldSetSubCategory } =
-            await resolveCategoryIds(
-                { category: data.category, subCategory: data.subCategory },
-                existing
-            );
+  const { categoryId, subCategoryId, shouldSetCategory, shouldSetSubCategory } = await resolveCategoryIds(
+    { category: data.category, subCategory: data.subCategory },
+    existing
+  );
 
-        const updateData = { ...data };
-        delete updateData.category;
-        delete updateData.subCategory;
+  const updateData = {};
+  for (const key of ["productName", "description", "discountType"]) {
+    if (data[key] !== undefined) updateData[key] = data[key];
+  }
+  for (const key of ["price", "discountPrice", "discountPercentage", "stock"]) {
+    if (data[key] !== undefined) updateData[key] = Number(data[key]);
+  }
+  if (data.images !== undefined) updateData.images = Array.isArray(data.images) ? data.images : [];
+  if (data.expiryDate !== undefined) updateData.expiryDate = data.expiryDate ? new Date(data.expiryDate) : null;
+  if (data.isFeatured !== undefined) updateData.isFeatured = Boolean(data.isFeatured);
+  if (shouldSetCategory) updateData.categoryId = categoryId;
+  if (shouldSetSubCategory) updateData.subCategoryId = subCategoryId || null;
 
-        if (shouldSetCategory) {
-            updateData.category = categoryId;
-        }
+  const updatedProduct = await prisma.product.update({
+    where: { id },
+    data: updateData,
+    include: productInclude,
+  });
 
-        if (shouldSetSubCategory) {
-            updateData.subCategory = subCategoryId || null;
-        }
-
-        const updatedProduct = await Product.findByIdAndUpdate(
-            existing._id,
-            updateData,
-            { new: true, runValidators: true }
-        );
-
-        return updatedProduct;
-    } catch (error) {
-        throw error;
-    }
+  return productPayload(updatedProduct);
 };
 
 export const deleteProduct = async (userId, productId) => {
-    try {
-        const store = await Store.findOne({ vendor: userId });
-        if (!store) throw createHttpError("Store not found", 404);
+  const store = await prisma.store.findUnique({ where: { vendorId: toIntId(userId, "user id") } });
+  if (!store) throw createHttpError("Store not found", 404);
 
-        const deleted = await Product.findOneAndDelete({ _id: productId, store: store._id });
-        if (!deleted) {
-            const err = new Error("Product not found");
-            err.statusCode = 404;
-            throw err;
-        }
+  const product = await prisma.product.findFirst({
+    where: { id: toIntId(productId, "product id"), storeId: store.id },
+  });
+  if (!product) throw createHttpError("Product not found", 404);
 
-        return true;
-    } catch (error) {
-        throw error;
-    }
+  await prisma.product.delete({ where: { id: product.id } });
+  return true;
 };

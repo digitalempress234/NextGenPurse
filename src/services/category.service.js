@@ -1,6 +1,6 @@
-import mongoose from "mongoose";
-import Category from "../models/Category.js";
+import prisma from "../config/prismaClient.js";
 import { createHttpError } from "../utils/httpError.js";
+import { toIntId, withMongoId } from "../utils/prismaHelpers.js";
 
 const parseBoolean = (value, defaultValue = true) => {
   if (typeof value === "undefined") return defaultValue;
@@ -13,74 +13,53 @@ const parseBoolean = (value, defaultValue = true) => {
 
 export const listCategories = async (query = {}) => {
   const { level, parent, activeOnly } = query;
-
-  const filter = {};
+  const where = {};
 
   if (typeof level !== "undefined") {
     const parsed = Number(level);
-    if (![1, 2].includes(parsed)) {
-      throw createHttpError("Invalid level. Expected 1 or 2", 400);
-    }
-    filter.level = parsed;
+    if (![1, 2].includes(parsed)) throw createHttpError("Invalid level. Expected 1 or 2", 400);
+    where.level = parsed;
   }
 
   if (typeof parent !== "undefined") {
-    if (parent === null || String(parent).trim() === "") {
-      filter.parent = null;
-    } else {
-      const parentId = String(parent).trim();
-      if (!mongoose.Types.ObjectId.isValid(parentId)) {
-        throw createHttpError("Invalid parent category id", 400);
-      }
-      filter.parent = parentId;
-    }
+    where.parentId = parent === null || String(parent).trim() === "" ? null : toIntId(parent, "parent category id");
   }
 
-  if (parseBoolean(activeOnly, true)) {
-    filter.isActive = true;
-  }
+  if (parseBoolean(activeOnly, true)) where.isActive = true;
 
-  const items = await Category.find(filter)
-    .select("_id name parent level isActive")
-    .sort({ name: 1 })
-    .lean();
+  const items = await prisma.category.findMany({
+    where,
+    orderBy: { name: "asc" },
+  });
 
-  return items;
+  return withMongoId(items.map((item) => ({ ...item, parent: item.parentId })));
 };
 
 export const getCategoryTree = async (query = {}) => {
-  const { activeOnly } = query;
-  const filter = {};
+  const where = {};
+  if (parseBoolean(query.activeOnly, true)) where.isActive = true;
 
-  if (parseBoolean(activeOnly, true)) {
-    filter.isActive = true;
-  }
-
-  const categories = await Category.find(filter)
-    .select("_id name parent level")
-    .sort({ level: 1, name: 1 })
-    .lean();
+  const categories = await prisma.category.findMany({
+    where,
+    orderBy: [{ level: "asc" }, { name: "asc" }],
+  });
 
   const parents = [];
   const byId = new Map();
 
   for (const category of categories) {
-    byId.set(String(category._id), { ...category, subCategories: [] });
+    byId.set(category.id, withMongoId({ ...category, parent: category.parentId, subCategories: [] }));
   }
 
   for (const category of categories) {
-    const id = String(category._id);
-    const node = byId.get(id);
-
-    if (!category.parent) {
+    const node = byId.get(category.id);
+    if (!category.parentId) {
       parents.push(node);
       continue;
     }
 
-    const parentNode = byId.get(String(category.parent));
-    if (parentNode) {
-      parentNode.subCategories.push(node);
-    }
+    const parentNode = byId.get(category.parentId);
+    if (parentNode) parentNode.subCategories.push(node);
   }
 
   return parents;

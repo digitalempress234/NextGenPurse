@@ -1,51 +1,71 @@
-// Simple in-memory token blacklist for logout functionality
-// For production, use Redis or database-backed blacklist
-const blacklistedTokens = new Set();
-const tokenExpirations = new Map(); // Track expiration times for cleanup
+import { config } from "../config/env.js";
+import { redisPublisher } from "../config/redis.js";
+
+const TOKEN_PREFIX = "auth:blacklist:";
+const testBlacklistFallback = new Set();
+
+const tokenKey = (token) => `${TOKEN_PREFIX}${token}`;
+
+const isTestEnv = () => config.nodeEnv === "test";
+
+const ensureRedisConnection = async () => {
+  if (redisPublisher.status === "wait") {
+    await redisPublisher.connect();
+  }
+};
+
+const computeTtlMs = (expiresAt) => {
+  const ttl = Number(expiresAt) - Date.now();
+  return Number.isFinite(ttl) && ttl > 0 ? ttl : 0;
+};
 
 // Add token to blacklist
-export const blacklistToken = (token, expiresAt) => {
-  blacklistedTokens.add(token);
-  tokenExpirations.set(token, expiresAt);
-  
-  // Schedule cleanup after token expires
-  setTimeout(() => {
-    blacklistedTokens.delete(token);
-    tokenExpirations.delete(token);
-  }, expiresAt - Date.now());
+export const blacklistToken = async (token, expiresAt) => {
+  if (isTestEnv()) {
+    testBlacklistFallback.add(token);
+    return;
+  }
+
+  const ttlMs = computeTtlMs(expiresAt);
+  if (ttlMs <= 0) return;
+
+  await ensureRedisConnection();
+  await redisPublisher.set(tokenKey(token), "1", "PX", ttlMs);
 };
 
 // Check if token is blacklisted
-export const isTokenBlacklisted = (token) => {
-  return blacklistedTokens.has(token);
+export const isTokenBlacklisted = async (token) => {
+  if (isTestEnv()) {
+    return testBlacklistFallback.has(token);
+  }
+
+  await ensureRedisConnection();
+  const exists = await redisPublisher.get(tokenKey(token));
+  return exists === "1";
 };
 
 // Middleware to check if token is blacklisted
-export const checkTokenBlacklist = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+export const checkTokenBlacklist = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return next();
+    }
+
     const token = authHeader.substring(7);
-    
-    if (isTokenBlacklisted(token)) {
+    const blacklisted = await isTokenBlacklisted(token);
+    if (blacklisted) {
       return res.status(401).json({
-        message: 'Token has been invalidated. Please login again.'
+        message: "Token has been invalidated. Please login again.",
       });
     }
-  }
-  
-  next();
-};
 
-// Cleanup expired tokens (run periodically)
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, expiresAt] of tokenExpirations.entries()) {
-    if (expiresAt < now) {
-      blacklistedTokens.delete(token);
-      tokenExpirations.delete(token);
-    }
+    return next();
+  } catch (error) {
+    // Fail-open to preserve API availability if Redis is temporarily unreachable.
+    console.error("[TokenBlacklist] Redis check failed:", error.message);
+    return next();
   }
-}, 5 * 60 * 1000); // Run every 5 minutes
+};
 
 export default { blacklistToken, isTokenBlacklisted, checkTokenBlacklist };

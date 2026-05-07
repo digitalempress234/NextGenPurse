@@ -87,7 +87,7 @@ export const logout = async (req, res, next) => {
         const expiresAt = decoded.exp * 1000; // Convert to milliseconds
         
         // Add token to blacklist
-        blacklistToken(token, expiresAt);
+        await blacklistToken(token, expiresAt);
 
         res.json({
             message: "Logout successful"

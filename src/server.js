@@ -1,7 +1,8 @@
 import app from "./app.js";
-import { connectDB } from "./config/db.js";
+import { connectDB, disconnectDB } from "./config/db.js";
 import { config } from "./config/env.js";
 import logger from "./middleware/logger.middleware.js";
+import { initializeChatSocket } from "./services/chatSocket.service.js";
 
 const PORT = config.port;
 
@@ -16,6 +17,9 @@ const startServer = async () => {
       logger.info(`API Documentation: http://localhost:${PORT}/api-docs`);
       logger.info(`Health Check: http://localhost:${PORT}/health`);
     });
+
+    await initializeChatSocket(server);
+    logger.info("Socket.IO chat initialized");
 
     // Handle unhandled promise rejections
     process.on("unhandledRejection", (reason, promise) => {
@@ -36,7 +40,7 @@ const startServer = async () => {
       gracefulShutdown("SIGTERM");
     });
 
-    // Handle SIGINT signal (Ctrl+C)
+    // Handle SIGINT signal 
     process.on("SIGINT", () => {
       logger.info("SIGINT signal received: closing HTTP server");
       gracefulShutdown("SIGINT");
@@ -69,13 +73,10 @@ const gracefulShutdown = async (signal) => {
         }, timeout);
 
         // Close database connection
-        const mongoose = await import("mongoose");
-        await mongoose.default.connection.close();
+        await disconnectDB();
         logger.info("Database connection closed");
 
         // Close any other connections (Redis, etc.)
-        // Add your cleanup code here
-
         logger.info("Graceful shutdown completed");
         process.exit(0);
       }

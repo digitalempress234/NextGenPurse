@@ -1,259 +1,207 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import mongoose from "mongoose";
-import User from "../models/User.js";
-import VendorProfile from "../models/VendorProfile.js";
-import Store from "../models/Store.js";
-import Category from "../models/Category.js";
+import prisma from "../config/prismaClient.js";
 import { sendEmail } from "./email.service.js";
+import { toIntId, withMongoId } from "../utils/prismaHelpers.js";
 
-// enforce onboarding step
 const enforceStep = (user, requiredStep) => {
-    if (user.onboardingStep !== requiredStep) {
-        throw new Error(`Complete ${requiredStep} step first`);
-    }
+  if (user.onboardingStep !== requiredStep) throw new Error(`Complete ${requiredStep} step first`);
 };
 
-// Generate 6 digits OTP
-const generateOTP = () => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-};
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 const generateOnboardingToken = (user) => {
-    return jwt.sign(
-        { id: user._id, role: user.role, scope: "vendor_onboarding" },
-        process.env.JWT_SECRET,
-        { expiresIn: "7d" }
-    );
+  return jwt.sign({ id: user.id, role: user.role, scope: "vendor_onboarding" }, process.env.JWT_SECRET, {
+    expiresIn: "7d",
+  });
 };
 
 export const registerVendor = async (email) => {
-    try {
-        const existing = await User.findOne({ email });
-        if (existing) throw new Error("User already exists");
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  if (existing) throw new Error("User already exists");
 
-        const otp = generateOTP();
+  const otp = generateOTP();
+  const user = await prisma.user.create({
+    data: {
+      email: normalizedEmail,
+      role: "vendor",
+      isEmailVerified: false,
+      onboardingStep: "created",
+      emailVerificationOTP: otp,
+      emailVerificationOTPExpires: new Date(Date.now() + 1000 * 60 * 60),
+    },
+  });
 
-        const user = await User.create({
-        email,
-        role: "vendor",
-        isEmailVerified: false,
-        onboardingStep: "created",
-        emailVerificationOTP: otp,
-        emailVerificationOTPExpires: Date.now() + 1000 * 60 * 60
-        });
+  await sendEmail({
+    to: normalizedEmail,
+    subject: "Verify your vendor account",
+    html: `<h2>Your verification OTP is: ${otp}</h2>`,
+  });
 
-        await sendEmail({
-        to: email,
-        subject: "Verify your vendor account",
-        html: `<h2>Your verification OTP is: ${otp}</h2>`
-        });
-
-        return user;
-
-    } catch (error) {
-        throw error;
-    }
+  return withMongoId(user);
 };
 
 export const resendVendorOTP = async (email) => {
-    try {
-        const user = await User.findOne({ email, role: "vendor" });
-        if (!user) throw new Error("User not found");
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const user = await prisma.user.findFirst({ where: { email: normalizedEmail, role: "vendor" } });
+  if (!user) throw new Error("User not found");
 
-        const otp = generateOTP();
+  const otp = generateOTP();
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      emailVerificationOTP: otp,
+      emailVerificationOTPExpires: new Date(Date.now() + 1000 * 60 * 60),
+    },
+  });
 
-        user.emailVerificationOTP = otp;
-        user.emailVerificationOTPExpires = Date.now() + 1000 * 60 * 60;
+  await sendEmail({
+    to: normalizedEmail,
+    subject: "Your New OTP",
+    html: `<h2>Your OTP is: ${otp}</h2>`,
+  });
 
-        await user.save();
-
-        await sendEmail({
-        to: email,
-        subject: "Your New OTP",
-        html: `<h2>Your OTP is: ${otp}</h2>`
-        });
-
-        return true;
-
-    } catch (error) {
-        throw error;
-    }
+  return true;
 };
 
 export const verifyVendorOTP = async (email, otp) => {
-    try {
-        const user = await User.findOne({ email, role: "vendor" });
+  const user = await prisma.user.findFirst({
+    where: { email: String(email).trim().toLowerCase(), role: "vendor" },
+  });
 
-        if (!user) throw new Error("User not found");
+  if (!user) throw new Error("User not found");
+  if (user.emailVerificationOTP !== otp || user.emailVerificationOTPExpires < new Date()) {
+    throw new Error("Invalid or expired OTP");
+  }
 
-        if (
-        user.emailVerificationOTP !== otp ||
-        user.emailVerificationOTPExpires < Date.now()
-        ) {
-        throw new Error("Invalid or expired OTP");
-        }
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      isEmailVerified: true,
+      onboardingStep: "verified",
+      emailVerificationOTP: null,
+      emailVerificationOTPExpires: null,
+    },
+  });
 
-        user.isEmailVerified = true;
-        user.onboardingStep = "verified";
-        user.emailVerificationOTP = undefined;
-        user.emailVerificationOTPExpires = undefined;
-
-        await user.save();
-
-        const token = generateOnboardingToken(user);
-
-        return { token };
-
-    } catch (error) {
-        throw error;
-    }
+  return { token: generateOnboardingToken(updated) };
 };
 
 export const updateVendorProfile = async (userId, data) => {
-    try {
-        const user = await User.findById(userId);
-        if (!user) throw new Error("User not found");
+  const id = toIntId(userId, "user id");
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) throw new Error("User not found");
+  enforceStep(user, "verified");
 
-        enforceStep(user, "verified");
+  const existingProfile = await prisma.vendorProfile.findUnique({ where: { userId: id } });
+  if (existingProfile) throw new Error("Vendor profile already exists");
 
-        const existingProfile = await VendorProfile.findOne({ user: user._id });
-        if (existingProfile) throw new Error("Vendor profile already exists");
-
-        const profile = await VendorProfile.create({
-        user: user._id,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        phoneNumber: data.phoneNumber,
+  const [profile, updatedUser] = await prisma.$transaction([
+    prisma.vendorProfile.create({
+      data: {
+        userId: id,
+        phoneNumber: data.phoneNumber ?? null,
         state: data.state,
         city: data.city,
-        address: data.address
-        });
+        address: data.address,
+      },
+    }),
+    prisma.user.update({
+      where: { id },
+      data: {
+        firstName: data.firstName ?? user.firstName,
+        lastName: data.lastName ?? user.lastName,
+        phoneNumber: data.phoneNumber ?? user.phoneNumber,
+        state: data.state ?? user.state,
+        city: data.city ?? user.city,
+        address: data.address ?? user.address,
+        avatar: data.avatar ?? user.avatar,
+        onboardingStep: "vendor_updated",
+      },
+    }),
+  ]);
 
-        if (data.avatar) {
-        user.avatar = data.avatar;
-        }
-
-        user.onboardingStep = "vendor_updated";
-        await user.save();
-
-        return { profile, avatar: user.avatar };
-
-    } catch (error) {
-        throw error;
-    }
+  return { profile: withMongoId(profile), avatar: updatedUser.avatar };
 };
 
 export const createStore = async (userId, data) => {
-    try {
-        const user = await User.findById(userId);
-        if (!user) throw new Error("User not found");
+  const id = toIntId(userId, "user id");
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) throw new Error("User not found");
+  enforceStep(user, "vendor_updated");
+  if (!data.category) throw new Error("Category is required");
 
-        enforceStep(user, "vendor_updated");
+  const categoryId = toIntId(data.category, "category");
+  const category = await prisma.category.findFirst({
+    where: { id: categoryId, level: 1, isActive: true },
+  });
+  if (!category) throw new Error("Category not found");
 
-        if (!data.category) throw new Error("Category is required");
+  const existingStore = await prisma.store.findUnique({ where: { vendorId: id } });
+  if (existingStore) throw new Error("Store already exists");
 
-        const categoryValue = String(data.category).trim();
-        if (!mongoose.Types.ObjectId.isValid(categoryValue)) {
-            throw new Error("Invalid category");
-        }
-
-        const category = await Category.findOne({
-            _id: categoryValue,
-            level: 1,
-            isActive: true
-        });
-
-        if (!category) throw new Error("Category not found");
-
-        const existingStore = await Store.findOne({ vendor: user._id });
-        if (existingStore) throw new Error("Store already exists");
-
-        const store = await Store.create({
-        vendor: user._id,
+  const [store] = await prisma.$transaction([
+    prisma.store.create({
+      data: {
+        vendorId: id,
+        categoryId,
         storeName: data.storeName,
         state: data.state,
         city: data.city,
         address: data.address,
-        category
-        });
+      },
+    }),
+    prisma.user.update({ where: { id }, data: { onboardingStep: "store_created" } }),
+  ]);
 
-        user.onboardingStep = "store_created";
-        await user.save();
-
-        return store;
-
-    } catch (error) {
-        throw error;
-    }
+  return withMongoId(store);
 };
 
 export const setVendorPassword = async (userId, password) => {
-    try {
-        const user = await User.findById(userId);
-        if (!user) throw new Error("User not found");
+  const id = toIntId(userId, "user id");
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) throw new Error("User not found");
+  enforceStep(user, "store_created");
 
-        enforceStep(user, "store_created");
+  await prisma.user.update({
+    where: { id },
+    data: {
+      password: await bcrypt.hash(password, 10),
+      onboardingStep: "password_set",
+    },
+  });
 
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        user.password = hashedPassword;
-        user.onboardingStep = "password_set";
-
-        await user.save();
-
-        return true;
-
-    } catch (error) {
-        throw error;
-    }
+  return true;
 };
 
 export const uploadVendorDocuments = async (userId, documents) => {
-    try {
-        const user = await User.findById(userId);
-        if (!user) throw new Error("User not found");
+  const id = toIntId(userId, "user id");
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) throw new Error("User not found");
+  enforceStep(user, "password_set");
 
-        enforceStep(user, "password_set");
+  let docs = documents;
+  if (typeof docs === "string") docs = [docs];
+  if (!docs || (Array.isArray(docs) && docs.length === 0)) throw new Error("Documents are required");
 
-        const profile = await VendorProfile.findOne({ user: user._id });
-        if (!profile) throw new Error("Vendor profile not found");
+  const [profile] = await prisma.$transaction([
+    prisma.vendorProfile.update({
+      where: { userId: id },
+      data: { documents: docs },
+    }),
+    prisma.user.update({ where: { id }, data: { onboardingStep: "documents_uploaded" } }),
+  ]);
 
-        let docs = documents;
-        if (typeof docs === "string") {
-        docs = [docs];
-        }
-
-        if (!docs || (Array.isArray(docs) && docs.length === 0)) {
-        throw new Error("Documents are required");
-        }
-
-        profile.documents = docs;
-        await profile.save();
-
-        user.onboardingStep = "documents_uploaded";
-        await user.save();
-
-        return profile;
-
-    } catch (error) {
-        throw error;
-    }
+  return withMongoId(profile);
 };
 
 export const submitForReview = async (userId) => {
-    try {
-        const user = await User.findById(userId);
-        if (!user) throw new Error("User not found");
+  const id = toIntId(userId, "user id");
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) throw new Error("User not found");
+  enforceStep(user, "documents_uploaded");
 
-        enforceStep(user, "documents_uploaded");
-
-        user.onboardingStep = "under_review";
-        await user.save();
-
-        return true;
-
-    } catch (error) {
-        throw error;
-    }
+  await prisma.user.update({ where: { id }, data: { onboardingStep: "under_review" } });
+  return true;
 };
