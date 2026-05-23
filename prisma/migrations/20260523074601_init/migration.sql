@@ -1,28 +1,30 @@
-/*
-  Warnings:
+-- CreateTable
+CREATE TABLE `User` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `firstName` VARCHAR(191) NULL,
+    `lastName` VARCHAR(191) NULL,
+    `email` VARCHAR(191) NOT NULL,
+    `password` VARCHAR(191) NULL,
+    `resetPasswordToken` VARCHAR(191) NULL,
+    `resetPasswordExpires` DATETIME(3) NULL,
+    `role` VARCHAR(191) NOT NULL DEFAULT 'customer',
+    `phoneNumber` VARCHAR(191) NULL,
+    `avatar` VARCHAR(191) NULL,
+    `isEmailVerified` BOOLEAN NOT NULL DEFAULT false,
+    `emailVerificationOTP` VARCHAR(191) NULL,
+    `emailVerificationOTPExpires` DATETIME(3) NULL,
+    `onboardingStep` VARCHAR(191) NOT NULL DEFAULT 'created',
+    `isVerified` BOOLEAN NOT NULL DEFAULT false,
+    `isActive` BOOLEAN NOT NULL DEFAULT true,
+    `state` VARCHAR(191) NULL,
+    `city` VARCHAR(191) NULL,
+    `address` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
 
-  - Added the required column `updatedAt` to the `User` table without a default value. This is not possible if the table is not empty.
-
-*/
--- AlterTable
-ALTER TABLE `user` ADD COLUMN `address` VARCHAR(191) NULL,
-    ADD COLUMN `avatar` VARCHAR(191) NULL,
-    ADD COLUMN `city` VARCHAR(191) NULL,
-    ADD COLUMN `emailVerificationOTP` VARCHAR(191) NULL,
-    ADD COLUMN `emailVerificationOTPExpires` DATETIME(3) NULL,
-    ADD COLUMN `isActive` BOOLEAN NOT NULL DEFAULT true,
-    ADD COLUMN `isEmailVerified` BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN `isVerified` BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN `onboardingStep` VARCHAR(191) NOT NULL DEFAULT 'created',
-    ADD COLUMN `phoneNumber` VARCHAR(191) NULL,
-    ADD COLUMN `resetPasswordExpires` DATETIME(3) NULL,
-    ADD COLUMN `resetPasswordToken` VARCHAR(191) NULL,
-    ADD COLUMN `role` VARCHAR(191) NOT NULL DEFAULT 'customer',
-    ADD COLUMN `state` VARCHAR(191) NULL,
-    ADD COLUMN `updatedAt` DATETIME(3) NOT NULL,
-    MODIFY `firstName` VARCHAR(191) NULL,
-    MODIFY `lastName` VARCHAR(191) NULL,
-    MODIFY `password` VARCHAR(191) NULL;
+    UNIQUE INDEX `User_email_key`(`email`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `Address` (
@@ -43,6 +45,7 @@ CREATE TABLE `WishlistItem` (
     `userId` INTEGER NOT NULL,
     `productId` INTEGER NOT NULL,
 
+    UNIQUE INDEX `WishlistItem_userId_productId_key`(`userId`, `productId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -106,7 +109,7 @@ CREATE TABLE `VendorProfile` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `userId` INTEGER NOT NULL,
     `phoneNumber` VARCHAR(191) NULL,
-    `documents` VARCHAR(191) NULL,
+    `documents` JSON NULL,
     `documentReviewStatus` VARCHAR(191) NOT NULL DEFAULT 'pending',
     `state` VARCHAR(191) NOT NULL,
     `city` VARCHAR(191) NOT NULL,
@@ -115,6 +118,24 @@ CREATE TABLE `VendorProfile` (
     `updatedAt` DATETIME(3) NOT NULL,
 
     UNIQUE INDEX `VendorProfile_userId_key`(`userId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Review` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `userId` INTEGER NOT NULL,
+    `productId` INTEGER NOT NULL,
+    `storeId` INTEGER NOT NULL,
+    `rating` INTEGER NOT NULL,
+    `comment` VARCHAR(191) NULL,
+    `isVerifiedPurchase` BOOLEAN NOT NULL DEFAULT false,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `Review_productId_createdAt_idx`(`productId`, `createdAt`),
+    INDEX `Review_storeId_createdAt_idx`(`storeId`, `createdAt`),
+    UNIQUE INDEX `Review_userId_productId_key`(`userId`, `productId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -221,7 +242,7 @@ CREATE TABLE `Delivery` (
 CREATE TABLE `DeliveryStatusUpdate` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `deliveryId` INTEGER NOT NULL,
-    `status` ENUM('PENDING', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'FAILED') NOT NULL,
+    `status` VARCHAR(191) NOT NULL,
     `location` VARCHAR(191) NULL,
     `occurredAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
@@ -276,6 +297,37 @@ CREATE TABLE `Notification` (
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+-- CreateTable
+CREATE TABLE `ChatConversation` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `adminId` INTEGER NOT NULL,
+    `participantId` INTEGER NOT NULL,
+    `lastMessageAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `ChatConversation_adminId_lastMessageAt_idx`(`adminId`, `lastMessageAt`),
+    INDEX `ChatConversation_participantId_lastMessageAt_idx`(`participantId`, `lastMessageAt`),
+    UNIQUE INDEX `ChatConversation_adminId_participantId_key`(`adminId`, `participantId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `ChatMessage` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `conversationId` INTEGER NOT NULL,
+    `senderId` INTEGER NOT NULL,
+    `body` TEXT NOT NULL,
+    `readAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `ChatMessage_conversationId_createdAt_idx`(`conversationId`, `createdAt`),
+    INDEX `ChatMessage_senderId_createdAt_idx`(`senderId`, `createdAt`),
+    INDEX `ChatMessage_readAt_idx`(`readAt`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 -- AddForeignKey
 ALTER TABLE `Address` ADD CONSTRAINT `Address_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -305,6 +357,15 @@ ALTER TABLE `Category` ADD CONSTRAINT `Category_parentId_fkey` FOREIGN KEY (`par
 
 -- AddForeignKey
 ALTER TABLE `VendorProfile` ADD CONSTRAINT `VendorProfile_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Review` ADD CONSTRAINT `Review_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Review` ADD CONSTRAINT `Review_productId_fkey` FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Review` ADD CONSTRAINT `Review_storeId_fkey` FOREIGN KEY (`storeId`) REFERENCES `Store`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Cart` ADD CONSTRAINT `Cart_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
@@ -341,3 +402,15 @@ ALTER TABLE `Payment` ADD CONSTRAINT `Payment_orderId_fkey` FOREIGN KEY (`orderI
 
 -- AddForeignKey
 ALTER TABLE `Notification` ADD CONSTRAINT `Notification_recipientId_fkey` FOREIGN KEY (`recipientId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ChatConversation` ADD CONSTRAINT `ChatConversation_adminId_fkey` FOREIGN KEY (`adminId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ChatConversation` ADD CONSTRAINT `ChatConversation_participantId_fkey` FOREIGN KEY (`participantId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ChatMessage` ADD CONSTRAINT `ChatMessage_conversationId_fkey` FOREIGN KEY (`conversationId`) REFERENCES `ChatConversation`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ChatMessage` ADD CONSTRAINT `ChatMessage_senderId_fkey` FOREIGN KEY (`senderId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
