@@ -1,4 +1,4 @@
-# Testing Guide for PurseByNextGenPurse
+# Testing Guide for purse-backend
 
 ## Overview
 

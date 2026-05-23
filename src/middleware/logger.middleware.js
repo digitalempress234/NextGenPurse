@@ -13,7 +13,7 @@ const logger = winston.createLogger({
   level: config.nodeEnv === "production" ? "info" : "debug",
   format: logFormat,
   defaultMeta: {
-    service: "pursebynextgenpurse-api",
+    service: "purse-backend-api",
     environment: config.nodeEnv,
   },
   transports: [

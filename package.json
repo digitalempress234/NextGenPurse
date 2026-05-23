@@ -1,5 +1,5 @@
 {
-  "name": "pursebynextgenpurse",
+  "name": "purse-backend",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -10,7 +10,8 @@
     "seed:categories": "node src/scripts/seedCategories.js",
     "test": "jest --config jest.config.cjs --detectOpenHandles",
     "test:watch": "jest --config jest.config.cjs --watch",
-    "test:coverage": "jest --config jest.config.cjs --coverage"
+    "test:coverage": "jest --config jest.config.cjs --coverage",
+    "docker:push": "sh scripts/docker-push.sh"
   },
   "keywords": [],
   "author": "",

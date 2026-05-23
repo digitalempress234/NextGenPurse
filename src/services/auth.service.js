@@ -36,7 +36,7 @@ export const registerUser = async (userData) => {
   try {
     await sendEmail({
       to: user.email,
-      subject: "Welcome to PurseByNextGenPurse",
+      subject: "Welcome to purse-backend",
       html: `<p>Welcome ${firstName}! Your account has been created successfully.</p>`,
     });
   } catch (emailError) {

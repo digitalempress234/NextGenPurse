@@ -169,7 +169,7 @@ app.use("/api/admin/chat", chatRoutes);
  *               properties:
  *                 message:
  *                   type: string
- *                   example: PurseByNextGenPurse API is running
+ *                   example: purse-backend API is running
  *                 version:
  *                   type: string
  *                   example: 1.0.0
@@ -179,7 +179,7 @@ app.use("/api/admin/chat", chatRoutes);
  */
 app.get("/", (req, res) => {
   res.json({
-    message: "PurseByNextGenPurse API is running",
+    message: "purse-backend API is running",
     version: "1.0.0",
     docs: "/api-docs",
     health: "/health",

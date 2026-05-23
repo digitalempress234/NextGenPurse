@@ -4,7 +4,7 @@ const swaggerOptions = {
   definition: {
     openapi: "3.0.0",
     info: {
-      title: "PurseByNextGenPurse API",
+      title: "purse-backend API",
       version: "1.0.0",
       description:
         "A comprehensive e-commerce platform API with multi-vendor support, payment processing, and order management.",
