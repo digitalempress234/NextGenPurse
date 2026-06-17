@@ -5,13 +5,11 @@ import { createHttpError } from "../utils/httpError.js";
 const transporter = nodemailer.createTransport({
   host: config.emailHost,
   port: config.emailPort,
-  secure: config.emailSecure,
   auth: {
     user: config.emailUser,
     pass: config.emailPass,
   },
 });
-
 if (config.nodeEnv !== "test") {
   transporter.verify((error) => {
     if (error) {
