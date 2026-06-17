@@ -2,8 +2,8 @@ module.exports = {
   testEnvironment: 'node',
   testMatch: ['**/__tests__/**/*.test.js', '**/?(*.)+(spec|test).js'],
   collectCoverageFrom: [
-    'src/**/*.js',
-    '!src/server.js',
+    'src/**/*.ts',
+    '!src/server.ts',
     '!src/config/**',
     '!src/integrations/**',
     '!src/jobs/**',
@@ -22,7 +22,11 @@ module.exports = {
   testTimeout: 10000,
   forceExit: true,
   clearMocks: true,
+  moduleFileExtensions: ['js', 'ts', 'json', 'node'],
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
   transform: {
-    '^.+\\.js$': 'babel-jest'
+    '^.+\\.[jt]s$': 'babel-jest'
   },
 };

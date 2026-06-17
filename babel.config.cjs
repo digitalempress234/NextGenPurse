@@ -8,6 +8,7 @@ module.exports = {
         },
         modules: 'commonjs'
       }
-    ]
+    ],
+    '@babel/preset-typescript'
   ]
 };

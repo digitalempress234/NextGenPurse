@@ -74,9 +74,11 @@ enum OnboardingStep {
   CREATED            @map("created")
   VERIFIED           @map("verified")
   VENDOR_UPDATED     @map("vendor_updated")
+  RIDER_UPDATED      @map("rider_updated")
   STORE_CREATED      @map("store_created")
   PASSWORD_SET       @map("password_set")
   DOCUMENTS_UPLOADED @map("documents_uploaded")
+  BANK_ACCOUNT_SET   @map("bank_account_set")
   UNDER_REVIEW       @map("under_review")
   APPROVED           @map("approved")
 }
@@ -150,11 +152,23 @@ model User {
   // 1:1 (vendor profile)
   vendorProfile VendorProfile?
 
+  // 1:1 (rider profile)
+  riderProfile RiderProfile?
+
   // 1:1 cart
   cart Cart?
 
+  // 1:1 compare list
+  compareList CompareList?
+
   // 1:n orders as customer
   orders Order[]
+
+  // 1:n deliveries as rider
+  riderDeliveries Delivery[] @relation("RiderDeliveries")
+
+  // 1:1 wallet
+  wallet Wallet?
 
   notifications Notification[]
   reviews       Review[]
@@ -237,6 +251,7 @@ model Product {
   wishlistItems WishlistItem[]
   cartItems     CartItem[]
   orderItems    OrderItem[]
+  compareItems  CompareItem[]
   reviews       Review[]
 }
 
@@ -430,7 +445,9 @@ model Order {
 
   currentStatus String @default("Order Received")
 
-  payment  Payment?  @relation("OrderPayment")
+  paymentId Int?
+  payment   Payment? @relation("OrderPayment", fields: [paymentId], references: [id])
+
   delivery Delivery? @relation("OrderDelivery")
 
   placedAt DateTime @default(now())
@@ -480,8 +497,10 @@ model Delivery {
   orderId Int   @unique
   order   Order @relation("OrderDelivery", fields: [orderId], references: [id], onDelete: Cascade)
 
+  riderId Int?
+  rider   User? @relation("RiderDeliveries", fields: [riderId], references: [id])
+
   riderName  String?
-  riderId    String?
   riderEmail String?
   riderPhone String?
 
@@ -494,11 +513,29 @@ model Delivery {
 
   trackingMapUrl String?
 
+  pickupCode   String?
+  deliveryCode String?
+
   status        String                 @default("pending")
   statusUpdates DeliveryStatusUpdate[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model DeliveryOffer {
+  id Int @id @default(autoincrement())
+
+  deliveryId Int
+  riderId    Int
+
+  status String @default("pending") // pending, accepted, rejected, expired
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([deliveryId])
+  @@index([riderId])
 }
 
 //////////////////////////////////////////////////
@@ -519,14 +556,114 @@ model DeliveryStatusUpdate {
 }
 
 //////////////////////////////////////////////////
+// WALLET MODELS
+//////////////////////////////////////////////////
+
+model Wallet {
+  id Int @id @default(autoincrement())
+
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  balance Float @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions WalletTransaction[]
+}
+
+model WalletTransaction {
+  id Int @id @default(autoincrement())
+
+  walletId Int
+  wallet   Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  amount Float
+  type   String // credit, debit
+
+  description String?
+
+  createdAt DateTime @default(now())
+}
+
+model Withdrawal {
+  id Int @id @default(autoincrement())
+
+  userId Int
+  amount Float
+
+  status String @default("pending") // pending, approved, rejected, completed
+
+  bankName      String
+  accountNumber String
+  accountName   String
+
+  otp        String?
+  otpExpires DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+//////////////////////////////////////////////////
+// RIDER MODELS
+//////////////////////////////////////////////////
+
+model RiderProfile {
+  id Int @id @default(autoincrement())
+
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  vehicleType   String?
+  vehicleNumber String?
+
+  businessName    String?
+  businessState   String?
+  businessCity    String?
+  businessAddress String?
+
+  isOnline Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RiderDocument {
+  id Int @id @default(autoincrement())
+
+  userId Int
+  type   String // ID_CARD, LICENSE, BUSINESS_PERMIT, etc.
+
+  url    String
+  status String @default("pending") // pending, approved, rejected
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RiderBankAccount {
+  id Int @id @default(autoincrement())
+
+  userId Int @unique
+
+  bankName      String
+  accountNumber String
+  accountName   String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+//////////////////////////////////////////////////
 // PAYMENT MODEL
 //////////////////////////////////////////////////
 
 model Payment {
   id Int @id @default(autoincrement())
 
-  orderId Int   @unique
-  order   Order @relation("OrderPayment", fields: [orderId], references: [id], onDelete: Cascade)
+  orders Order[] @relation("OrderPayment")
 
   amount Float
 
@@ -633,4 +770,34 @@ model ChatMessage {
   @@index([conversationId, createdAt])
   @@index([senderId, createdAt])
   @@index([readAt])
+}
+
+//////////////////////////////////////////////////
+// PRODUCT COMPARISON MODELS
+//////////////////////////////////////////////////
+
+model CompareList {
+  id Int @id @default(autoincrement())
+
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items CompareItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CompareItem {
+  id Int @id @default(autoincrement())
+
+  compareListId Int
+  compareList   CompareList @relation(fields: [compareListId], references: [id], onDelete: Cascade)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([compareListId, productId])
 }
