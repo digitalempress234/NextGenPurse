@@ -1,40 +1,35 @@
 import nodemailer from "nodemailer";
+import { config } from "../config/env.js";
 import { createHttpError } from "../utils/httpError.js";
 const transporter = nodemailer.createTransport({
-    service: "gmail",
-    host: process.env.EMAIL_HOST || "smtp.gmail.com",
-    port: process.env.EMAIL_PORT || 587,
-    secure: false,
+    host: config.emailHost,
+    port: config.emailPort,
     auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
+        user: config.emailUser,
+        pass: config.emailPass,
+    },
 });
-// Test transporter on startup
-if (process.env.NODE_ENV !== "test") {
+if (config.nodeEnv !== "test") {
     transporter.verify((error) => {
         if (error) {
-            console.error(" Email transporter failed:", error.message);
+            console.error("Email transporter failed:", error.message);
         }
-        else if (process.env.NODE_ENV === "development") {
-            console.log(" Email transporter ready");
+        else if (config.nodeEnv === "development") {
+            console.log("Email transporter ready");
         }
     });
 }
 export const sendEmail = async ({ to, subject, html }) => {
     try {
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        if (!config.emailUser || !config.emailPass) {
             throw createHttpError("Email service is not configured", 500);
         }
         const info = await transporter.sendMail({
-            from: `"NextGenPurse Superstore" <${process.env.EMAIL_USER}>`,
+            from: `"NextGenPurse Superstore" <${config.emailUser}>`,
             to,
             subject,
-            html
+            html,
         });
-        if (process.env.NODE_ENV === "development") {
-            console.log("Email sent successfully:", info.messageId);
-        }
         return info;
     }
     catch (error) {

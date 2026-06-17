@@ -1,13 +1,9 @@
-import Redis from "ioredis";
+import ioredis, { RedisOptions } from "ioredis";
+const { Redis } = ioredis;
 import { config } from "./env.js";
 
 const createRedisClient = () => {
-<<<<<<< HEAD:src/config/redis.js
-  const redisOptions = {
-=======
-  const RedisCtor = Redis as unknown as new (...args: any[]) => any;
-  const client = new RedisCtor({
->>>>>>> updated-project:src/config/redis.ts
+  const redisOptions: RedisOptions = {
     host: config.redisHost,
     port: config.redisPort,
     password: config.redisPassword || undefined,
@@ -31,6 +27,7 @@ const createRedisClient = () => {
   }
 
   const client = new Redis(redisOptions);
+
 
   client.on("error", (err) => {
     console.error("[Redis] Connection error:", err.message);

@@ -1,4 +1,3 @@
-import { randomBytes } from "crypto";
 const requiredEnvVars = ["DATABASE_URL", "JWT_SECRET", "CLIENT_URL"];
 const missingVars = requiredEnvVars.filter((varName) => !process.env[varName]);
 if (missingVars.length > 0) {
@@ -6,12 +5,8 @@ if (missingVars.length > 0) {
 }
 const getJwtSecret = () => {
     const secret = process.env.JWT_SECRET;
-    if (!secret || secret.length < 32) {
-        console.warn(" WARNING: JWT_SECRET is missing or too weak. Generating a strong random secret.");
-        console.warn(" Please set JWT_SECRET in your .env file for production (min 64 characters).");
-        const generated = randomBytes(64).toString("hex");
-        console.warn(" WARNING: Using auto-generated JWT_SECRET. This will change on restart. Use environment variable in production.");
-        return generated;
+    if (!secret) {
+        throw new Error("JWT_SECRET is required");
     }
     return secret;
 };
@@ -36,6 +31,9 @@ export const config = {
     baseUrl: process.env.BASE_URL,
     redisHost: process.env.REDIS_HOST || "localhost",
     redisPort: Number.parseInt(process.env.REDIS_PORT || "6379", 10),
+    redisPassword: process.env.REDIS_PASSWORD || "",
+    redisDb: Number.parseInt(process.env.REDIS_DB || "0", 10),
+    redisTls: String(process.env.REDIS_TLS || "false").toLowerCase() === "true",
 };
 if (config.nodeEnv === "development") {
     console.log("Running in development mode");
