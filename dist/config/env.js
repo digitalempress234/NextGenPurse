@@ -8,39 +8,56 @@ const getJwtSecret = () => {
     if (!secret) {
         throw new Error("JWT_SECRET is required");
     }
+    if (secret.length < 32) {
+        throw new Error("JWT_SECRET must be at least 32 characters long");
+    }
     return secret;
 };
-const parsedNodeEnv = (process.env.NODE_ENV || "development");
+const toNumber = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+};
+const toBoolean = (value, fallback = false) => {
+    if (value === undefined || value === null || value === "")
+        return fallback;
+    return String(value).toLowerCase() === "true";
+};
 export const config = {
-    port: Number.parseInt(process.env.PORT || "5000", 10),
-    nodeEnv: parsedNodeEnv,
+    // Server
+    port: toNumber(process.env.PORT, 5000),
+    nodeEnv: (process.env.NODE_ENV || "development"),
+    // Database
     databaseUrl: process.env.DATABASE_URL,
+    // JWT
     jwtSecret: getJwtSecret(),
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
-    clientUrl: process.env.CLIENT_URL,
+    // CORS
+    clientUrl: process.env.CLIENT_URL || "http://localhost:3000",
+    // Base URL
+    baseUrl: process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`,
+    // Redis
+    redisHost: process.env.REDIS_HOST || "127.0.0.1",
+    redisPort: toNumber(process.env.REDIS_PORT, 6379),
+    redisPassword: process.env.REDIS_PASSWORD || "",
+    redisDb: toNumber(process.env.REDIS_DB, 0),
+    redisTls: toBoolean(process.env.REDIS_TLS, false),
+    // Email
     emailUser: process.env.EMAIL_USER,
     emailPass: process.env.EMAIL_PASS,
-    emailHost: process.env.EMAIL_HOST || "smtp.gmail.com",
-    emailPort: Number.parseInt(process.env.EMAIL_PORT || "587", 10),
+    emailHost: process.env.EMAIL_HOST || "smtp.titan.email",
+    emailPort: toNumber(process.env.EMAIL_PORT, 465),
+    emailSecure: toBoolean(process.env.EMAIL_SECURE, toNumber(process.env.EMAIL_PORT, 465) === 465),
+    // Cloudinary
     cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
     cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
     cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
+    // Paystack
     paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
     paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY,
     paystackWebhookSecret: process.env.PAYSTACK_WEBHOOK_SECRET,
-    baseUrl: process.env.BASE_URL,
-    redisHost: process.env.REDIS_HOST || "localhost",
-    redisPort: Number.parseInt(process.env.REDIS_PORT || "6379", 10),
-    redisPassword: process.env.REDIS_PASSWORD || "",
-    redisDb: Number.parseInt(process.env.REDIS_DB || "0", 10),
-    redisTls: String(process.env.REDIS_TLS || "false").toLowerCase() === "true",
+    // Admin
+    adminEmail: process.env.ADMIN_EMAIL,
+    adminPassword: process.env.ADMIN_PASSWORD,
 };
-if (config.nodeEnv === "development") {
-    console.log("Running in development mode");
-}
-else if (config.nodeEnv === "production") {
-    if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-        throw new Error("JWT_SECRET must be set and be at least 32 characters in production");
-    }
-}
+export default config;
 //# sourceMappingURL=env.js.map
