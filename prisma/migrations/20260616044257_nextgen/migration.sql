@@ -1,26 +1,26 @@
 /*
   Warnings:
 
-  - You are about to alter the column `riderId` on the `delivery` table. The data in that column could be lost. The data in that column will be cast from `VarChar(191)` to `Int`.
-  - You are about to drop the column `orderId` on the `payment` table. All the data in the column will be lost.
+  - You are about to alter the column `riderId` on the `Delivery` table. The data in that column could be lost. The data in that column will be cast from `VarChar(191)` to `Int`.
+  - You are about to drop the column `orderId` on the `Payment` table. All the data in the column will be lost.
 
 */
 -- DropForeignKey
-ALTER TABLE `payment` DROP FOREIGN KEY `Payment_orderId_fkey`;
+ALTER TABLE `Payment` DROP FOREIGN KEY `Payment_orderId_fkey`;
 
 -- DropIndex
-DROP INDEX `Payment_orderId_key` ON `payment`;
+DROP INDEX `Payment_orderId_key` ON `Payment`;
 
 -- AlterTable
-ALTER TABLE `delivery` ADD COLUMN `deliveryCode` VARCHAR(191) NULL,
+ALTER TABLE `Delivery` ADD COLUMN `deliveryCode` VARCHAR(191) NULL,
     ADD COLUMN `pickupCode` VARCHAR(191) NULL,
     MODIFY `riderId` INTEGER NULL;
 
 -- AlterTable
-ALTER TABLE `order` ADD COLUMN `paymentId` INTEGER NULL;
+ALTER TABLE `Order` ADD COLUMN `paymentId` INTEGER NULL;
 
 -- AlterTable
-ALTER TABLE `payment` DROP COLUMN `orderId`;
+ALTER TABLE `Payment` DROP COLUMN `orderId`;
 
 -- CreateTable
 CREATE TABLE `DeliveryOffer` (
